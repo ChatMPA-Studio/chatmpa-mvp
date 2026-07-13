@@ -19,3 +19,7 @@ renv/library/
 
 # macOS
 .DS_Store
+
+# Design assets (to be sorted out later)
+ChatMPA Design System/
+ChatMPA Design System.zip
