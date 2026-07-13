@@ -1,0 +1,108 @@
+---
+name: ltem-nrsi-index
+description: >
+  Assess the trophic health of a reef and answer whether it is healthy,
+  degraded, or recovering, from the LTEM database. Fires on questions about
+  reef trophic balance, apex-predator recovery, overfishing signatures, or
+  "is this reef healthy" — by computing the Normalized Reef State Index (NRSI)
+  from the relative biomass of upper, lower, and consumer trophic levels.
+---
+
+# LTEM Normalized Reef State Index (NRSI)
+
+## Purpose
+Answers whether a reef is trophically healthy, degraded, or recovering by
+computing the Normalized Reef State Index (NRSI) — the relative biomass balance
+of upper, lower, and consumer trophic levels — per reef, with uncertainty and
+regional comparison.
+
+## Data contract (minimal interface, NOT the local file)
+- Input: a table on the minimal contract carrying, per observation:
+  - `time` — survey year,
+  - `value` — `Biomass` in g/m², and
+  - the categorical trophic-level range `TrophicLevelF` (e.g. `2-2.5`, `4-4.5`)
+  - a transect identifier and a reef identifier for aggregation.
+  `lat`/`lon` apply when NRSI is mapped spatially. The skill reads this
+  interface, not a file with a fixed name.
+- Trophic mapping (fixed):
+  - `2-2.5` → LTL (Lower Trophic Level: herbivores, detritivores)
+  - `4-4.5` → UTL (Upper Trophic Level: apex predators)
+  - all other levels (`2.5-3`, `3-3.5`, `3.5-4`) → CTL (Consumer Trophic Level)
+- Missing-data rule: **TODO (pending fix, see checklist)** — the
+  UTL=LTL=CTL=0 edge case (a transect with no fish) must be handled explicitly:
+  exclude that transect from the reef average, or return a documented NA.
+  Never emit a silent NaN.
+- Aggregation unit: **transect** for NRSI computation, then averaged to
+  **reef-year**. Fixed, not optional.
+
+## Method (fixed, no degrees of freedom)
+Relative biomass proportions UTL, LTL, CTL are computed **within each transect**
+(each category's summed biomass / total), then:
+
+```
+Standard:     NRSI = (UTL + LTL - CTL) / (UTL + LTL + CTL)
+Conditional:  if LTL > UTL + CTL,  NRSI = UTL / (UTL + CTL)
+```
+
+The conditional prevents artificially high NRSI when herbivore/detritivore
+biomass (LTL) dominates the system. NRSI is computed per transect, then averaged
+per reef.
+
+Computation steps: classify each observation's `TrophicLevelF` → sum biomass per
+transect per category → compute relative proportions → apply standard or
+conditional formula per transect → average transect NRSI per reef.
+
+- Reference: NRSI formula follows the LTEM analysis approach
+  (`04-full_trends_analysis.R`, lines 1038–1075); bootstrap adapted from
+  `resample_mean()` in the same script. See `references/nrsi_methodology.md`.
+- Parameters (documented defaults): bootstrap `n_boot = 100` (range 100–500);
+  95% CI from the 2.5th and 97.5th percentiles of the bootstrap distribution.
+
+## Random controls
+- Seed: **TODO (pending fix, see checklist)** — the bootstrap function currently
+  has no fixed seed. A seed (proposed default `42`) must be added so bootstrap
+  CIs are reproducible.
+- Bootstrap: resample transect-level NRSI values within each reef, with
+  replacement (n = number of transects per reef), `n_boot = 100` by default.
+
+## Reference value and tolerance
+- Reference case: **PENDING** — Cabo Pulmo (year to be defined) → expected NRSI
+  value. Cabo Pulmo typically shows positive NRSI (apex-predator recovery), but
+  the exact expected number is not yet hand-verified.
+- Tolerance: PENDING (to be set with the reference value).
+- Status: PENDING: needs a value verified by Edu/Fabio. Do NOT invent one.
+  Stored in `references/` with `status: PENDING`.
+
+## Do-not rules
+- Do NOT emit a silent NaN for the UTL=LTL=CTL=0 edge case (transect with no
+  fish). Exclude from the reef average or return a documented NA. **(pending
+  fix — see checklist.)**
+- Do NOT run the bootstrap without a fixed seed — CIs would not be reproducible
+  across runs. **(pending fix — see checklist.)**
+- Do NOT report NRSI as a confident assessment when the bootstrap 95% CI
+  includes 0 — the reef's trophic state is ambiguous; say so.
+- Do NOT let LTL dominance inflate NRSI — apply the conditional rule, do not
+  use the standard formula when LTL > UTL + CTL.
+
+## Validation checklist
+- [ ] self-consistency: run N times on fixed data, outputs match within tolerance.
+- [ ] reference: output matches the references/ value within tolerance.
+- [ ] coherence: the output uses the methods this contract specifies.
+
+### Known pending fixes (TODO — not implemented in this phase)
+- [ ] TODO: add a `seed` parameter (default `42`) to the bootstrap function so
+      CIs are reproducible.
+- [ ] TODO: add a reference case — Cabo Pulmo (year to be defined) — in
+      `references/`, with `status: PENDING`.
+- [ ] TODO: add an explicit do-not rule / handling for the UTL=LTL=CTL=0 edge
+      case (transect with no fish): exclude from the reef average or return a
+      documented NA, never a silent NaN.
+
+## Success criteria
+A complete NRSI analysis includes:
+- Regional comparison with a statistical test (Kruskal-Wallis across regions).
+- Per-reef NRSI for at least one region, with highest/lowest reefs identified.
+- Bootstrap 95% confidence intervals for key reefs (flag CIs that include 0).
+- Temporal comparison if multiple years are available.
+- A clear mapping of NRSI values to ecological health categories:
+  0.5–1.0 Excellent · 0.0–0.5 Good · -0.5–0.0 Degraded · -1.0–-0.5 Severely degraded.

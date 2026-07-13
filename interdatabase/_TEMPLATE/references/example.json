@@ -1,0 +1,18 @@
+{
+  "skill": "skill-name",
+  "skill_version": "0.1.0",
+  "cases": [
+    {
+      "id": "descriptive-case",
+      "input": {
+        "description": "which subset of data this case uses",
+        "filters": {}
+      },
+      "expected_value": null,
+      "tolerance": null,
+      "status": "PENDING",
+      "verified_by": null,
+      "notes": "PENDING: needs a hand-verified value. Do not fill with the skill's own output."
+    }
+  ]
+}
