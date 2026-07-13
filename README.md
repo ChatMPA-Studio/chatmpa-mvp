@@ -94,3 +94,12 @@ too.
    `Rscript -e 'source("shared/validation/run_checks.R"); run_all_checks("per-database/<source-metric>")'`
 
 See `CONVENTIONS.md` for naming and versioning rules.
+
+## Orchestration
+
+`ORCHESTRATION.md` is the playbook for turning a natural-language conservation
+question into a traceable output (markdown report, figures, DOCX brief, NotebookLM
+artifacts) by chaining MCP data access with these Skills. It defines the pipeline
+stages (intake → select → acquire → compute → validate → render → assemble), works
+both interactively and as an agent chain, and is structured to be promoted into a
+runnable orchestrator Skill.
