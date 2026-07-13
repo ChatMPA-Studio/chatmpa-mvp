@@ -16,3 +16,6 @@ outputs/
 .RData
 .Rproj.user/
 renv/library/
+
+# macOS
+.DS_Store
