@@ -28,10 +28,10 @@ regional comparison.
   - `2-2.5` → LTL (Lower Trophic Level: herbivores, detritivores)
   - `4-4.5` → UTL (Upper Trophic Level: apex predators)
   - all other levels (`2.5-3`, `3-3.5`, `3.5-4`) → CTL (Consumer Trophic Level)
-- Missing-data rule: **TODO (pending fix, see checklist)** — the
-  UTL=LTL=CTL=0 edge case (a transect with no fish) must be handled explicitly:
-  exclude that transect from the reef average, or return a documented NA.
-  Never emit a silent NaN.
+- Missing-data rule: transects where UTL=LTL=CTL=0 (no fish recorded) are
+  **excluded** from the reef average with a warning. Never emit a silent NaN.
+  Implemented in `skill.R`: rows with `total_biomass == 0` are dropped before
+  NRSI computation; count reported as `n_empty` in the warning message.
 - Aggregation unit: **transect** for NRSI computation, then averaged to
   **reef-year**. Fixed, not optional.
 
@@ -59,9 +59,8 @@ conditional formula per transect → average transect NRSI per reef.
   95% CI from the 2.5th and 97.5th percentiles of the bootstrap distribution.
 
 ## Random controls
-- Seed: **TODO (pending fix, see checklist)** — the bootstrap function currently
-  has no fixed seed. A seed (proposed default `42`) must be added so bootstrap
-  CIs are reproducible.
+- Seed: **fixed at `42`** (`set.seed(42L)` called once before the bootstrap
+  loop in `skill.R`). CIs are fully reproducible across runs.
 - Bootstrap: resample transect-level NRSI values within each reef, with
   replacement (n = number of transects per reef), `n_boot = 100` by default.
 
@@ -75,10 +74,9 @@ conditional formula per transect → average transect NRSI per reef.
 
 ## Do-not rules
 - Do NOT emit a silent NaN for the UTL=LTL=CTL=0 edge case (transect with no
-  fish). Exclude from the reef average or return a documented NA. **(pending
-  fix — see checklist.)**
+  fish). Exclude from the reef average with a warning — implemented in `skill.R`.
 - Do NOT run the bootstrap without a fixed seed — CIs would not be reproducible
-  across runs. **(pending fix — see checklist.)**
+  across runs. Seed is fixed at `42` in `skill.R`.
 - Do NOT report NRSI as a confident assessment when the bootstrap 95% CI
   includes 0 — the reef's trophic state is ambiguous; say so.
 - Do NOT let LTL dominance inflate NRSI — apply the conditional rule, do not
@@ -89,14 +87,12 @@ conditional formula per transect → average transect NRSI per reef.
 - [ ] reference: output matches the references/ value within tolerance.
 - [ ] coherence: the output uses the methods this contract specifies.
 
-### Known pending fixes (TODO — not implemented in this phase)
-- [ ] TODO: add a `seed` parameter (default `42`) to the bootstrap function so
-      CIs are reproducible.
-- [ ] TODO: add a reference case — Cabo Pulmo (year to be defined) — in
-      `references/`, with `status: PENDING`.
-- [ ] TODO: add an explicit do-not rule / handling for the UTL=LTL=CTL=0 edge
-      case (transect with no fish): exclude from the reef average or return a
-      documented NA, never a silent NaN.
+### Resolved fixes (implemented in `skill.R`)
+- [x] Seed fixed at `42` (`set.seed(42L)`) — bootstrap CIs are reproducible.
+- [x] UTL=LTL=CTL=0 edge case: transects with zero total biomass are excluded
+      with a `warning()` before NRSI computation; count reported in message.
+- [x] Reference case created: `references/cabo_pulmo_nrsi_reference.json`
+      with `status: PENDING` — awaiting human-verified values from Edu/Fabio.
 
 ## Success criteria
 A complete NRSI analysis includes:
