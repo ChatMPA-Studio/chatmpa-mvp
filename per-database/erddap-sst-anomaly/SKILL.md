@@ -108,3 +108,33 @@ A complete SST anomaly analysis includes:
   flagged as warming signal.
 - Comparison of local vs regional trend: note whether the AMP tracks the LME
   or diverges (local upwelling, coastal effects).
+
+---
+
+## Planned scale architecture — PENDING: gradilla costera
+
+> Este bloque documenta la arquitectura objetivo del MVP. No modifica el
+> contrato actual. Implementar cuando la gradilla esté disponible.
+
+### Cambio de escala local
+- **Actual**: `clip_to_geometry(data, geometry_local)` con polígono del AMP (sf via `get_amp_geometry()`)
+- **Planeado**: extraer valores SST/anom en las celdas de la gradilla donde `nombre_amp == <amp_name>`
+- La gradilla es un objeto vectorial sf (polígonos), NO un raster
+- Extracción: centroide de cada celda de la gradilla como punto de extracción sobre el raster ERDDAP (resolución OISST 0.25° ≈ 25 km, probablemente más fina que la gradilla)
+- Si se quiere promedio dentro del polígono de cada celda en lugar del valor puntual, usar extracción por polígono en vez de centroide — decisión pendiente
+
+### Cambio de escala regional
+- **Actual**: `clip_to_geometry(data, geometry_regional)` con polígono del LME (sf via `get_lme_geometry()`)
+- **Planeado**: extraer valores SST/anom en las celdas de la gradilla donde `region_id == <region>`, donde `region_id` proviene de `conapesca-lfo-regions`
+- El valor regional de un AMP = promedio de las celdas de la gradilla de su región de manejo
+
+### Lo que NO cambia
+- Fórmula de agregación: `mean(sst)`, `mean(anom)` por año — idéntica
+- Regla de cobertura (`cobertura_pct < 50` → NA)
+- Baseline de anomalía: NOAA 1971–2000 climatología embebida en `anom`
+- Outputs: misma estructura, solo cambia la fuente de la geometría
+
+### Dependencias para implementar
+- [ ] Gradilla costera disponible (objeto sf con columnas `nombre_amp`, `region_id`)
+- [ ] `conapesca-lfo-regions` ejecutado para obtener asignación de región por celda
+- [ ] Decisión: extracción por centroide vs. por polígono de celda

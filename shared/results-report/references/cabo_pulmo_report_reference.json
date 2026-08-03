@@ -1,0 +1,14 @@
+{
+  "skill_name": "results-report",
+  "skill_version": "0.1.0",
+  "status": "PENDING",
+  "description": "Reference case for results-report: full report object for Cabo Pulmo using the complete available time series. To be verified by Edu/Fabio against a direct analysis in R.",
+  "reference_case": {
+    "amp": "Cabo Pulmo",
+    "expected_value": null,
+    "tolerance": null,
+    "verified_by": null,
+    "verified_date": null
+  },
+  "note": "Do not fill expected_value with the skill's own output. Only mark VERIFIED after human review."
+}

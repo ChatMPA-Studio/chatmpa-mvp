@@ -12,6 +12,7 @@ data/*
 # Outputs and temp
 outputs/
 *.log
+*.xlsx
 .Rhistory
 .RData
 .Rproj.user/

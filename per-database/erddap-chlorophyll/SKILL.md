@@ -122,3 +122,30 @@ A complete chlorophyll analysis includes:
   flagged as high-productivity event; `< -0.3` (roughly 0.5× baseline) flagged
   as low-productivity. Comparison of local vs regional signal noted (local
   upwelling decoupling is common along Baja California).
+
+---
+
+## Planned scale architecture — PENDING: gradilla costera
+
+> Este bloque documenta la arquitectura objetivo del MVP. No modifica el
+> contrato actual. Implementar cuando la gradilla esté disponible.
+
+### Cambio de escala local
+- **Actual**: `clip_to_geometry(data, geometry_local)` con polígono del AMP
+- **Planeado**: extraer valores de clorofila en celdas de la gradilla donde `nombre_amp == <amp_name>`
+- Extracción: centroide de cada celda como punto sobre el raster ERDDAP (MODIS 4 km, probablemente más fino que la gradilla)
+- Si se quiere promedio por polígono de celda en lugar del valor puntual, usar extracción por polígono — decisión pendiente
+
+### Cambio de escala regional
+- **Actual**: `clip_to_geometry(data, geometry_regional)` con polígono del LME
+- **Planeado**: extraer valores en celdas de la gradilla donde `region_id == <region>` (de `conapesca-lfo-regions`)
+
+### Lo que NO cambia
+- Fórmula: media geométrica log₁₀, anomalía log₁₀ vs. baseline 2003–2020 — idéntica
+- Regla de cobertura (`cobertura_pct < 50` → NA)
+- Outputs: misma estructura
+
+### Dependencias para implementar
+- [ ] Gradilla costera disponible (sf con `nombre_amp`, `region_id`)
+- [ ] `conapesca-lfo-regions` ejecutado
+- [ ] Decisión: extracción por centroide vs. por polígono de celda
