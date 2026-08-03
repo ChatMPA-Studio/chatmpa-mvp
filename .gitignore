@@ -12,6 +12,10 @@ data/*
 # Outputs and temp
 outputs/
 *.log
+*.xlsx
+
+# Personal/local scripts (not part of the project)
+generate_inventory.py
 .Rhistory
 .RData
 .Rproj.user/

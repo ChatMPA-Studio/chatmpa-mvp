@@ -173,3 +173,42 @@ A complete CPUE analysis with this skill must include:
 - `n_viajes` and `n_viajes_excluidos` reported per year-fleet cell.
 - Years with n < 5 trips flagged in the narrative.
 - A brief comparison between regional and local trends (convergent / divergent).
+
+---
+
+## Planned scale architecture — PENDING: gradilla costera + base limpia
+
+> Este bloque documenta la arquitectura objetivo del MVP. No modifica el
+> contrato actual. Implementar cuando la gradilla y los puertos de desembarque
+> georreferenciados estén disponibles.
+
+### Cambio de escala local
+- **Actual**: `office_filter` (nombre_oficina) como proxy del AMP
+- **Planeado**: sitios de desembarque georreferenciados asociados a celdas de
+  la gradilla donde `nombre_amp == <amp_name>`
+- Requiere: puertos de desembarque limpios y georreferenciados en los folios CONAPESCA
+- Supuesto mantenido: puerto de desembarque ≈ puerto de salida para flota artesanal
+
+### Cambio de escala regional
+- **Actual**: `state_filter` (nombre_estado) — estado completo
+- **Planeado**: `region_id` de `conapesca-lfo-regions` — región de manejo pesquero
+- Mecánica: folios se asignan a región vía `nombre_oficina` → lookup de lfo-regions
+- Valor regional = promedio de CPUE de todos los folios cuya oficina pertenece a `region_id`
+- Supuesto: no hay traslape de localidades entre oficinas dentro de una misma región
+
+### Implicación para el output
+- El campo `escala` pasará de `"regional"/"local"` a `"region_manejo"/"amp_local"`
+  para distinguir claramente del esquema anterior
+- AMPs en la misma región de manejo (ej. Loreto y Espíritu Santo si coinciden)
+  tendrán el mismo valor regional por construcción — documentar explícitamente
+
+### Lo que NO cambia
+- Fórmula CPUE: mean-of-ratios por folio — idéntica
+- Separación MAYORES/MENORES
+- Reglas de exclusión por flags de calidad
+
+### Dependencias para implementar
+- [ ] Gradilla costera disponible (sf con `nombre_amp`, `region_id`, `nombre_oficina`)
+- [ ] Puertos de desembarque georreferenciados en la base CONAPESCA
+- [ ] `conapesca-lfo-regions` ejecutado (lookup oficina → region_id)
+- [ ] Parámetro `region_filter` agregado como alternativa a `state_filter`
