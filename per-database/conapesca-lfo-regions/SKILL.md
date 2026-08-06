@@ -17,7 +17,7 @@ description: >
 Partitions CONAPESCA landing offices into k discrete fishing management regions using
 k-means clustering on CA ordination scores produced by `conapesca-lfo-ca`.
 Regions are renumbered geographically (north to south) for consistency across
-runs. Produces a canonical lookup table (`nombre_oficina_canonico` → `region_id`)
+runs. Produces a canonical lookup table (`nombre_oficina` → `region_id`)
 for use by all downstream skills that consume regional fishing pressure data.
 
 **Reference:** Erisman B.E. et al. (2011). Spatial structure of commercial
@@ -29,7 +29,7 @@ marine fisheries in Northwest Mexico. *ICES Journal of Marine Science*, 68(3),
 ### Required: `ca_output`
 The complete list returned by `conapesca-lfo-ca$run_skill()`. Must contain:
 - `ca_output$value$ca_scores_lfo` — data.frame with CA1, CA2 per LFO
-  (row names = `nombre_oficina_canonico`).
+  (row names = `nombre_oficina`).
 - `ca_output$value$kl_table` — data.frame with k, WK, KL (for reference
   in the output; not recomputed here).
 - `ca_output$value$k_optimal_kl` — integer suggested by KL index.
@@ -96,6 +96,9 @@ without updating SKILL.md and incrementing skill_version.
 
 - Do NOT run this skill without a `ca_output` from `conapesca-lfo-ca` — the
   CA scores are the only valid input for clustering.
+- Do NOT mix `ca_output` objects from different litorales — each regionalization
+  must correspond to a single litoral (PACIFICO or GOLFO). The `litoral` is
+  set at the `conapesca-lfo-ca` step and inherited here via `ca_output`.
 - Do NOT use raw landings or geographic distance as clustering inputs —
   composition similarity in CA space is the basis, as in Erisman et al.
 - Do NOT auto-select k — the user must choose it after reviewing WK/KL.
@@ -123,11 +126,11 @@ without updating SKILL.md and incrementing skill_version.
 
 A complete regionalization includes:
 - `lookup`: data.frame with one row per LFO —
-  `nombre_oficina_canonico`, `region_id`, `region_num`.
+  `nombre_oficina`, `region_id`, `region_num`.
 - `cluster_summary`: one row per region — `region_id`, `region_num`,
   `n_lfo`, `lfo_names`, `mean_ca1`, `mean_ca2`,
   `region_label_suggested` (NA — to be filled by orchestrator).
-- `mds_coords`: data.frame with `nombre_oficina_canonico`, `MDS1`, `MDS2`,
+- `mds_coords`: data.frame with `nombre_oficina`, `MDS1`, `MDS2`,
   `region_id` — for verification plot.
 - `k_used` and `wk_final` reported.
 - `k_optimal_kl` from upstream skill disclosed in params.
