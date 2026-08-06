@@ -1,0 +1,221 @@
+[
+  {
+    "skill": "erddap-sst-anomaly",
+    "display": "both",
+    "data_source": "ERDDAP (OISST v2.1, NOAA)",
+    "kpi": {
+      "label": "Sea Surface Temperature",
+      "metric": "sst_mean_C",
+      "unit": "°C",
+      "description": "Mean annual SST at the MPA (local scale)",
+      "scale": "local"
+    },
+    "plot": {
+      "type": "time_series",
+      "y_metric": "sst_anom_C",
+      "y_label": "SST Anomaly (°C)",
+      "x_label": "Year",
+      "description": "Annual SST anomaly relative to 1971–2000 NOAA climatology",
+      "period": "1981–present",
+      "show_zero_line": true
+    }
+  },
+  {
+    "skill": "erddap-chlorophyll",
+    "display": "both",
+    "data_source": "ERDDAP (MODIS Aqua, 8-day composites)",
+    "kpi": {
+      "label": "Chlorophyll-a",
+      "metric": "chl_geomean_mg_m3",
+      "unit": "mg/m³",
+      "description": "Annual geometric mean Chl-a at the MPA (local scale)",
+      "scale": "local"
+    },
+    "plot": {
+      "type": "time_series",
+      "y_metric": "chl_anom_mg_m3",
+      "y_label": "Chl-a Anomaly (mg/m³)",
+      "x_label": "Year",
+      "description": "Annual Chl-a anomaly relative to 2003–2020 baseline",
+      "period": "2003–present",
+      "show_zero_line": true
+    }
+  },
+  {
+    "skill": "erddap-pp",
+    "display": "both",
+    "data_source": "ERDDAP (MODIS Aqua, 8-day composites)",
+    "kpi": {
+      "label": "Net Primary Production",
+      "metric": "npp_geomean_mgC_m2_day",
+      "unit": "mgC/m²/day",
+      "description": "Annual geometric mean NPP at the MPA (local scale)",
+      "scale": "local"
+    },
+    "plot": {
+      "type": "time_series",
+      "y_metric": "npp_anom_mgC_m2_day",
+      "y_label": "NPP Anomaly (mgC/m²/day)",
+      "x_label": "Year",
+      "description": "Annual NPP anomaly relative to 2003–2020 baseline",
+      "period": "2003–present",
+      "show_zero_line": true
+    }
+  },
+  {
+    "skill": "ltem-nrsi-index",
+    "display": "both",
+    "data_source": "LTEM (reef fish surveys)",
+    "kpi": {
+      "label": "Reef Trophic Health (NRSI)",
+      "metric": "nrsi_mean",
+      "unit": "dimensionless (−1 to +1)",
+      "description": "Mean Normalized Reef State Index across monitored reefs",
+      "scale": "site",
+      "categories": {
+        "Excellent": [0.5, 1.0],
+        "Good": [0.0, 0.5],
+        "Degraded": [-0.5, 0.0],
+        "Severely degraded": [-1.0, -0.5]
+      }
+    },
+    "plot": {
+      "type": "time_series_with_ci",
+      "y_metric": "nrsi",
+      "y_label": "NRSI",
+      "x_label": "Year",
+      "description": "Annual NRSI per reef with 95% bootstrap confidence intervals",
+      "period": "1998–present",
+      "show_zero_line": true,
+      "show_ci": true
+    }
+  },
+  {
+    "skill": "ltem-fish-biomass",
+    "display": "both",
+    "data_source": "LTEM (reef fish surveys)",
+    "kpi": {
+      "label": "Fish Biomass",
+      "metric": "mean_biomass_g_m2",
+      "unit": "g/m²",
+      "description": "Mean fish biomass across monitored reefs (most recent 5 years)",
+      "scale": "region"
+    },
+    "plot": {
+      "type": "time_series_gam",
+      "y_metric": "biomass_g_m2",
+      "y_label": "Fish Biomass (g/m²)",
+      "x_label": "Year",
+      "description": "Annual observed means (points) with GAM smooth trend ± 95% CI (reef random effect excluded)",
+      "period": "1998–present",
+      "show_ci": true,
+      "overlay": "observed_annual_means"
+    }
+  },
+  {
+    "skill": "ltem-invertebrate-abundance",
+    "display": "both",
+    "data_source": "LTEM (reef invertebrate surveys)",
+    "kpi": {
+      "label": "Invertebrate Abundance",
+      "metric": "mean_abundance_per_transect",
+      "unit": "individuals per transect",
+      "description": "Mean abundance per transect for each focal taxon (most recent 5 years)",
+      "scale": "region",
+      "taxa": ["Echinoidea", "Asteroidea", "Holaxonia", "Scleractinia"]
+    },
+    "plot": {
+      "type": "time_series_gam_facets",
+      "y_metric": "abundance_per_transect",
+      "y_label": "Abundance (individuals/transect)",
+      "x_label": "Year",
+      "series": "taxa",
+      "facets": ["Echinoidea", "Asteroidea", "Holaxonia", "Scleractinia"],
+      "description": "Annual observed means (points) with GAM smooth trend ± 95% CI per taxon, faceted (reef random effect excluded)",
+      "period": "1998–present",
+      "show_ci": true,
+      "overlay": "observed_annual_means",
+      "ci_lwr_floor": 0
+    }
+  },
+  {
+    "skill": "conapesca-cpue",
+    "display": "both",
+    "data_source": "CONAPESCA (landing records)",
+    "kpi": {
+      "label": "Catch per Unit Effort",
+      "metric": "cpue_kg_per_day",
+      "unit": "kg / effective fishing day",
+      "description": "Mean CPUE for target species at the local scale (most recent 5 years)",
+      "scale": "local",
+      "note": "Separate values for MAYORES (industrial) and MENORES (artisanal) fleets"
+    },
+    "plot": {
+      "type": "time_series",
+      "y_metric": "cpue_kg_per_day",
+      "y_label": "CPUE (kg/fishing day)",
+      "x_label": "Year",
+      "series": "fleet",
+      "description": "Annual CPUE time series by fleet and species",
+      "period": "2001–present"
+    }
+  },
+  {
+    "skill": "conapesca-ppr",
+    "display": "both",
+    "data_source": "CONAPESCA (landing records)",
+    "kpi": {
+      "label": "Primary Production Required",
+      "metric": "ppr_kg_C_per_year",
+      "unit": "kg C / year",
+      "description": "Total PPR by the fishery at the local scale (most recent 5-year mean)",
+      "scale": "local"
+    },
+    "plot": {
+      "type": "time_series",
+      "y_metric": "ppr_kg_C_per_year",
+      "y_label": "PPR (kg C/year)",
+      "x_label": "Year",
+      "series": "species",
+      "description": "Annual Primary Production Required by species and fleet",
+      "period": "2001–present"
+    }
+  },
+  {
+    "skill": "ppr-ratio",
+    "display": "both",
+    "data_source": "CONAPESCA + ERDDAP (cross-database)",
+    "kpi": {
+      "label": "Fishery Ecological Footprint (%PPR)",
+      "metric": "ppr_ratio_pct",
+      "unit": "%",
+      "description": "Fraction of local ocean primary production consumed by the fishery",
+      "scale": "local",
+      "benchmarks": {
+        "light_pressure": "< 5%",
+        "heavy_exploitation": "> 25–35%"
+      }
+    },
+    "plot": {
+      "type": "time_series",
+      "y_metric": "ppr_ratio_pct",
+      "y_label": "%PPR",
+      "x_label": "Year",
+      "description": "Annual fraction of primary production consumed by fishery, by species",
+      "period": "2003–present",
+      "show_benchmark_lines": true
+    }
+  },
+  {
+    "skill": "reef-drivers-lm",
+    "display": "plot",
+    "data_source": "LTEM + CONAPESCA + ERDDAP (cross-database)",
+    "plot": {
+      "type": "regression_coefficients",
+      "description": "OLS regression coefficients showing association of fishing pressure (%PPR per species) and thermal anomaly (SST) with reef trophic health (NRSI)",
+      "y_metric": "coefficient",
+      "y_label": "Effect on NRSI (coefficient ± 95% CI)",
+      "note": "For display only when the full interdatabase analysis is run — not shown in the default KPI dashboard"
+    }
+  }
+]

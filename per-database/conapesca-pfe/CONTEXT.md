@@ -1,3 +1,7 @@
+**Status: DEFERRED** — Not required for MVP. Prerequisites (georeferenced landing ports, validated allometric relationship) are not yet met. Revisit after CONAPESCA port cleanup is complete.
+
+---
+
 # Contexto: Skill de Esfuerzo Pesquero Predicho (PFE)
 
 ## Estado

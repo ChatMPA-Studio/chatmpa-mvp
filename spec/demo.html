@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>chatMPA — Interactive MPA Demo</title>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+/* ── Design tokens (from chatMPA Design System) ─────────────────────────── */
+:root {
+  --sand-50:  #FDFAF4; --sand-100: #FBF5EC; --sand-200: #F4EADB;
+  --ocean-50: #EAF0F6; --ocean-100:#CBDAE8; --ocean-400:#33597F;
+  --ocean-500:#1D496B; --ocean-600:#143A5C; --ocean-700:#0E2C48; --ocean-800:#0B2338;
+  --marine-300:#4FBBD8; --marine-400:#1E9EC4; --marine-500:#0E82A8; --marine-600:#0A6788;
+  --ink-50:  #F1F4F5; --ink-100:#E4E9EC; --ink-200:#CAD2D7;
+  --ink-400: #808E97; --ink-600:#44545E; --ink-700:#2C3942; --ink-900:#0F1418;
+  --green-500:#21925F; --green-100:#DBEFE5;
+  --amber-500:#C6892A; --amber-100:#F6E9CF;
+  --coral-500:#CC4C43; --coral-100:#F6DCD8;
+  --chart-1: #0B2338; --chart-2: #1E9EC4; --chart-3: #21925F;
+  --chart-4: #C6892A; --chart-5: #7C5A93; --chart-6: #CC4C43;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--sand-50);
+  color: var(--ink-900);
+  display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+}
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+.topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 20px; height: 52px;
+  background: var(--ocean-800); border-bottom: 1px solid var(--ocean-700);
+  flex-shrink: 0; z-index: 1000;
+}
+.topbar-logo {
+  font-size: 16px; font-weight: 700; letter-spacing: -0.3px;
+  color: #fff;
+}
+.topbar-logo span { color: var(--marine-300); }
+.topbar-tag {
+  font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 4px;
+  background: rgba(79,187,216,0.2); color: var(--marine-300);
+  letter-spacing: 0.5px; text-transform: uppercase;
+}
+.topbar-sep { flex: 1; }
+.topbar-hint {
+  font-size: 12px; color: rgba(255,255,255,0.45);
+}
+
+/* ── Main layout ─────────────────────────────────────────────────────────── */
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Map ─────────────────────────────────────────────────────────────────── */
+#map { flex: 1; min-width: 0; }
+
+/* ── Side panel ──────────────────────────────────────────────────────────── */
+.panel {
+  width: 380px; flex-shrink: 0;
+  background: var(--sand-50); border-left: 1px solid var(--ink-100);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+.panel-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px;
+  color: var(--ink-400); padding: 32px;
+}
+.panel-empty-icon {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--ocean-50); display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+}
+.panel-empty p { font-size: 13px; text-align: center; line-height: 1.5; }
+
+.panel-content { flex: 1; overflow-y: auto; display: none; }
+.panel-content.visible { display: block; }
+
+/* Panel header */
+.panel-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--ink-100);
+  background: #fff; position: sticky; top: 0; z-index: 10;
+}
+.panel-header-badge {
+  display: inline-block; font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.6px;
+  padding: 2px 6px; border-radius: 3px;
+  background: var(--green-100); color: var(--green-500);
+  margin-bottom: 6px;
+}
+.panel-header h2 {
+  font-size: 17px; font-weight: 700; color: var(--ocean-800); line-height: 1.2;
+}
+.panel-header p {
+  font-size: 12px; color: var(--ink-400); margin-top: 3px;
+}
+
+/* KPI grid — 3 columns × 2 rows */
+.kpi-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px;
+  background: var(--ink-100); margin: 0; border-top: 1px solid var(--ink-100);
+}
+.kpi-card {
+  background: #fff; padding: 14px 16px;
+}
+.kpi-card-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--ink-400); margin-bottom: 4px;
+}
+.kpi-card-value {
+  font-size: 18px; font-weight: 700; color: var(--ocean-800); line-height: 1;
+}
+.kpi-card-unit {
+  font-size: 11px; color: var(--ink-400); margin-top: 2px;
+}
+.kpi-card-sub {
+  font-size: 11px; color: var(--ink-600); margin-top: 6px;
+  padding-top: 6px; border-top: 1px solid var(--ink-50);
+}
+
+/* Section */
+.section { padding: 16px 20px; border-top: 1px solid var(--ink-100); }
+.section-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--ink-400); margin-bottom: 10px;
+}
+.chart-wrap { position: relative; height: 160px; }
+.chart-wrap-tall { position: relative; height: 260px; }
+
+.env-chart-wrap { position: relative; height: 130px; margin-top: 8px; }
+.env-note { font-size: 10px; color: var(--ink-400); margin-top: 5px; line-height: 1.4; }
+.kpi-card-env { font-size: 9px; color: var(--ink-400); margin-top: 3px; }
+.pending-tag {
+  display: inline-block; font-size: 9px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.4px; padding: 1px 5px; border-radius: 3px;
+  background: var(--ink-50); color: var(--ink-400);
+}
+
+/* CPUE section */
+.cpue-kpi-row {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+  background: var(--ink-100);
+}
+.cpue-fleet-label {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.6px; padding: 2px 6px; border-radius: 3px;
+  display: inline-block; margin-bottom: 4px;
+}
+.cpue-fleet-label.menores { background: var(--green-100); color: var(--green-500); }
+.cpue-fleet-label.mayores { background: var(--amber-100); color: var(--amber-500); }
+
+/* Legend */
+.map-legend {
+  position: absolute; bottom: 28px; left: 12px; z-index: 900;
+  background: rgba(255,255,255,0.96); border: 1px solid var(--ink-100);
+  border-radius: 8px; padding: 10px 14px; font-size: 11px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+.legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.legend-row:last-child { margin-bottom: 0; }
+.legend-swatch {
+  width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+  border: 1px solid rgba(0,0,0,0.15);
+}
+.legend-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+
+/* Layer toggle */
+.layer-toggle {
+  position: absolute; top: 70px; right: 10px; z-index: 900;
+  background: rgba(255,255,255,0.96); border: 1px solid var(--ink-100);
+  border-radius: 8px; padding: 10px 14px; font-size: 11px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12); display: flex; flex-direction: column; gap: 8px;
+}
+.layer-toggle label {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  color: var(--ink-700); font-weight: 500;
+}
+.layer-toggle input { accent-color: var(--marine-500); }
+
+/* Conapesca info */
+.region-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; padding: 4px 10px; border-radius: 20px;
+  background: var(--ocean-50); color: var(--ocean-600); font-weight: 500;
+  border: 1px solid var(--ocean-100);
+}
+.region-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--marine-400); }
+
+/* Scrollbar */
+.panel-content::-webkit-scrollbar { width: 4px; }
+.panel-content::-webkit-scrollbar-track { background: transparent; }
+.panel-content::-webkit-scrollbar-thumb { background: var(--ink-200); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="topbar-logo">chat<span>MPA</span></div>
+  <div class="topbar-tag">Demo</div>
+  <div class="topbar-sep"></div>
+  <div class="topbar-hint">Click an MPA polygon to explore data</div>
+</div>
+
+<!-- Main -->
+<div class="main">
+  <div id="map"></div>
+
+  <!-- Side panel -->
+  <div class="panel">
+    <div class="panel-empty" id="panelEmpty">
+      <div class="panel-empty-icon">🗺️</div>
+      <p>Select an MPA on the map to view ecological KPIs and fishing context.</p>
+    </div>
+    <div class="panel-content" id="panelContent">
+      <!-- filled by JS -->
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Load data and initialise ──────────────────────────────────────────────────
+fetch('demo_data.json')
+  .then(r => r.json())
+  .then(data => init(data))
+  .catch(e => { document.getElementById('panelEmpty').querySelector('p').textContent = 'Error loading demo_data.json. Open this file via a local server (e.g. python3 -m http.server).'; });
+
+function init(DATA) {
+
+// ── Map setup ─────────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([25.5, -110], 6);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+  attribution: '© CartoDB © OSM', maxZoom: 18
+}).addTo(map);
+
+// Place names layer (subtle)
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+  attribution: '', maxZoom: 18, pane: 'shadowPane'
+}).addTo(map);
+
+// ── Region colors for offices ─────────────────────────────────────────────────
+const regionColors = { 1:'#1E9EC4', 2:'#0B2338', 3:'#21925F', 4:'#C6892A', 6:'#7C5A93', 7:'#CC4C43' };
+
+// ── Grid layer ────────────────────────────────────────────────────────────────
+const gridLayer = L.geoJSON(DATA.grid, {
+  style: f => ({
+    fillColor: f.properties.mpa_id ? '#1E9EC4' : '#CAD2D7',
+    fillOpacity: f.properties.mpa_id ? 0.18 : 0.08,
+    color: f.properties.mpa_id ? '#0E82A8' : '#A7B2B9',
+    weight: 0.4, opacity: 0.6
+  })
+});
+
+// ── MPA polygons ──────────────────────────────────────────────────────────────
+let selectedLayer = null;
+
+const mpaStyle = f => {
+  const hasData = f.properties.has_data;
+  return {
+    fillColor: hasData ? '#1D496B' : '#6488AC',
+    fillOpacity: hasData ? 0.28 : 0.10,
+    color: hasData ? '#0E82A8' : '#9DB6CE',
+    weight: hasData ? 1.6 : 0.8, opacity: 1
+  };
+};
+const mpaStyleSelected = { fillColor: '#0B2338', fillOpacity: 0.55, color: '#1E9EC4', weight: 2.5 };
+const mpaStyleHover    = f => ({ fillOpacity: f.properties.has_data ? 0.45 : 0.22 });
+
+const mpaLayer = L.geoJSON(DATA.mpas, {
+  style: mpaStyle,
+  onEachFeature: (feature, layer) => {
+    const name = feature.properties.nombre_amp;
+    const tip  = feature.properties.has_data
+      ? `<strong>${name}</strong><br><span style="color:#1E9EC4;font-size:10px">● LTEM data available</span>`
+      : `<strong>${name}</strong><br><span style="color:#808E97;font-size:10px">No LTEM data</span>`;
+    layer.bindTooltip(tip, { sticky: true, offset: [8, 0] });
+    layer.on('click', () => {
+      if (selectedLayer) selectedLayer.setStyle(mpaStyle(selectedLayer.feature));
+      layer.setStyle(mpaStyleSelected);
+      selectedLayer = layer;
+      showPanel(name, feature.properties, DATA);
+    });
+    layer.on('mouseover', () => { if (layer !== selectedLayer) layer.setStyle(mpaStyleHover(feature)); });
+    layer.on('mouseout',  () => { if (layer !== selectedLayer) layer.setStyle(mpaStyle(feature)); });
+  }
+}).addTo(map);
+
+// ── Office markers ────────────────────────────────────────────────────────────
+const officeLayer = L.layerGroup();
+if (DATA.offices && DATA.offices.lat) {
+  const lats = DATA.offices.lat, lons = DATA.offices.lon,
+        names = DATA.offices.nombre_oficina_canonico,
+        rids  = DATA.offices.region_id,
+        rnames = DATA.offices.region_name;
+  for (let i = 0; i < lats.length; i++) {
+    if (!lats[i] || !lons[i]) continue;
+    const col = regionColors[rids[i]] || '#808E97';
+    L.circleMarker([lats[i], lons[i]], {
+      radius: 5, fillColor: col, color: '#fff',
+      weight: 1.2, opacity: 1, fillOpacity: 0.85
+    }).bindTooltip(`<strong>${names[i]}</strong><br>${rnames[i]}`, { sticky: true })
+      .addTo(officeLayer);
+  }
+}
+officeLayer.addTo(map);
+
+// ── Layer controls (custom) ───────────────────────────────────────────────────
+const toggleDiv = document.createElement('div');
+toggleDiv.className = 'layer-toggle';
+toggleDiv.innerHTML = `
+  <label><input type="checkbox" id="chkGrid" checked> Prosperity grid</label>
+  <label><input type="checkbox" id="chkOffices" checked> Fishing offices</label>
+  <label><input type="checkbox" id="chkMPA" checked> MPA polygons</label>
+`;
+document.getElementById('map').appendChild(toggleDiv);
+
+toggleDiv.querySelector('#chkGrid').addEventListener('change', e =>
+  e.target.checked ? map.addLayer(gridLayer) : map.removeLayer(gridLayer));
+toggleDiv.querySelector('#chkOffices').addEventListener('change', e =>
+  e.target.checked ? map.addLayer(officeLayer) : map.removeLayer(officeLayer));
+toggleDiv.querySelector('#chkMPA').addEventListener('change', e =>
+  e.target.checked ? map.addLayer(mpaLayer) : map.removeLayer(mpaLayer));
+
+gridLayer.addTo(map);
+
+// ── Map legend ────────────────────────────────────────────────────────────────
+const legendDiv = document.createElement('div');
+legendDiv.className = 'map-legend';
+legendDiv.innerHTML = `
+  <div style="font-weight:600;color:#44545E;margin-bottom:6px">MPA Polygons</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:#1D496B;opacity:.6;border-color:#0E82A8"></div> With LTEM data</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:#6488AC;opacity:.3;border-color:#9DB6CE"></div> No LTEM data</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:#1E9EC4;opacity:.4;border-color:#0E82A8"></div> Grid (in MPA)</div>
+  <div class="legend-row"><div class="legend-swatch" style="background:#CAD2D7;opacity:.5"></div> Grid (outside)</div>
+  <div style="margin:8px 0 4px;font-weight:600;color:#44545E">Fishing regions</div>
+  ${Object.entries({1:'GoC Norte',2:'Pac. Baja Norte',3:'GoC Sur / BCS',4:'Pac. Nayarit-Gro',6:'Pac. Central',7:'Pac. Sur'})
+    .map(([k,v]) => `<div class="legend-row"><div class="legend-dot" style="background:${regionColors[k]}"></div>${v}</div>`).join('')}
+`;
+document.getElementById('map').appendChild(legendDiv);
+
+// ── Panel renderer ────────────────────────────────────────────────────────────
+
+function showPanel(name, props, DATA) {
+  document.getElementById('panelEmpty').style.display = 'none';
+  const el = document.getElementById('panelContent');
+  el.classList.add('visible');
+  el.innerHTML = '';
+
+  Object.values(Chart.instances).forEach(c => c.destroy());
+
+  const mpaData = DATA.mpa_data[name];
+  const hasData = !!mpaData;
+
+  // ── Header ────────────────────────────────────────────────────────────────
+  const hdr = document.createElement('div');
+  hdr.className = 'panel-header';
+  hdr.innerHTML = `
+    <div class="panel-header-badge">Marine Protected Area</div>
+    <h2>${name}</h2>
+    <p>${props.categoria || ''}${hasData && mpaData.ltem_region ? ` &nbsp;·&nbsp; LTEM: ${mpaData.ltem_region}` : ''}</p>
+  `;
+  el.appendChild(hdr);
+
+  if (!hasData) {
+    const nd = document.createElement('div');
+    nd.style.cssText = 'padding:24px 20px;color:#808E97;font-size:13px;';
+    nd.textContent = 'No precomputed data for this MPA in the demo. In production, the AI orchestrator queries the MCPs and runs the skills on demand.';
+    el.appendChild(nd);
+    return;
+  }
+
+  const bm      = mpaData.biomass;
+  const fg      = mpaData.functional_groups;
+  const sstData = mpaData.sst;
+  const chlData = mpaData.chl;
+  const invEchi = mpaData.invertebrates?.Echinoidea?.kpi;
+  const regionLabel = {1:'GoC Norte',2:'Pac. Baja Norte',3:'GoC Sur y BCS',
+    4:'Pac. Nayarit-Guerrero',6:'Pac. Central',7:'Pac. Sur (Oaxaca-Chiapas)'}[mpaData.conapesca_region_id] || '';
+  const rid     = String(mpaData.conapesca_region_id);
+  const cpueReg = DATA.cpue_regions?.[rid];
+  const kpiMen  = cpueReg ? cpueReg.kpi_menores_mean_cpue : null;
+  const kpiMay  = cpueReg ? cpueReg.kpi_mayores_mean_cpue : null;
+  const fmtVal  = (v, dec, fallback='—') => v != null ? (+v).toFixed(dec) : fallback;
+
+  // ── KPI grid — 6 cards (3 × 2) ───────────────────────────────────────────
+  const kpiEl = document.createElement('div');
+  kpiEl.className = 'kpi-grid';
+  const invEchi = mpaData.invertebrates?.Echinoidea?.kpi;
+  const invHolax = mpaData.invertebrates?.Holaxonia?.kpi;
+  kpiEl.innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-card-label">Fish Biomass</div>
+      <div class="kpi-card-value">${bm ? fmtVal(bm.kpi.mean_biomass_g_m2, 2) : '—'}</div>
+      <div class="kpi-card-unit">T / ha</div>
+      <div class="kpi-card-sub">Mean · 5-yr surveys · LTEM</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-label">Invertebrates</div>
+      <div class="kpi-card-value">${invEchi ? fmtVal(invEchi.mean_abundance_per_transect, 1) : '—'}</div>
+      <div class="kpi-card-unit">ind. / transect</div>
+      <div class="kpi-card-sub">Echinoidea · 5-yr mean</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-label">Art. CPUE</div>
+      <div class="kpi-card-value">${fmtVal(kpiMen, 0)}</div>
+      <div class="kpi-card-unit">kg / eff. day</div>
+      <div class="kpi-card-sub">MENORES · 5-yr · ${regionLabel || '—'}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-label">Ind. CPUE</div>
+      <div class="kpi-card-value">${fmtVal(kpiMay, 0)}</div>
+      <div class="kpi-card-unit">kg / eff. day</div>
+      <div class="kpi-card-sub">MAYORES · 5-yr · ${regionLabel || '—'}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-label">SST</div>
+      <div class="kpi-card-value">${sstData ? fmtVal(sstData.kpi_mean_sst_c, 1) : '—'}</div>
+      <div class="kpi-card-unit">${sstData ? '°C avg · OISST' : '<span class="pending-tag">GoC only</span>'}</div>
+      <div class="kpi-card-sub">${sstData ? `${sstData.kpi_years} · ${fmtVal(sstData.kpi_mhw_days_per_yr,1)} MHW days/yr` : 'Outside GoC coverage'}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-card-label">Chl-a</div>
+      <div class="kpi-card-value">${chlData ? fmtVal(chlData.kpi_mean_chla_mg_m3, 3) : '—'}</div>
+      <div class="kpi-card-unit">${chlData ? 'mg / m³ · MODIS' : '<span class="pending-tag">no data</span>'}</div>
+      <div class="kpi-card-sub">${chlData ? `${chlData.kpi_years} · annual mean` : ''}</div>
+    </div>
+  `;
+  el.appendChild(kpiEl);
+
+  // ── Fish Biomass — Trophic Structure ──────────────────────────────────────
+  const bmSection = document.createElement('div');
+  bmSection.className = 'section';
+  if (fg) {
+    bmSection.innerHTML = `
+      <div class="section-title">Fish Biomass — Trophic Structure (T/ha)</div>
+      <div class="chart-wrap-tall"><canvas id="chartFuncBiomass"></canvas></div>
+    `;
+  } else if (bm) {
+    const nYears = bm.annual_means?.year?.length || 0;
+    const note = nYears < 5
+      ? `<span style="font-size:10px;color:#C6892A">⚠ Only ${nYears} survey years</span>`
+      : (bm.dev_expl_pct ? `<span style="font-size:10px;color:#808E97">GAM dev.expl.: ${bm.dev_expl_pct}%</span>` : '');
+    bmSection.innerHTML = `<div class="section-title">Fish Biomass — GAM Trend (T/ha) ${note}</div><div class="chart-wrap"><canvas id="chartBiomass"></canvas></div>`;
+  } else {
+    bmSection.innerHTML = `<div class="section-title">Fish Biomass</div><div style="font-size:11px;color:var(--ink-400);padding:8px 0">No LTEM fish data for this MPA.</div>`;
+  }
+  el.appendChild(bmSection);
+
+  // ── Fishing Pressure — CPUE ───────────────────────────────────────────────
+  const cpueSection = document.createElement('div');
+  cpueSection.className = 'section';
+  if (cpueReg) {
+    cpueSection.innerHTML = `
+      <div class="section-title">Fishing Pressure · <span class="region-badge" style="font-size:10px;padding:2px 8px"><span class="region-dot"></span>${regionLabel}</span></div>
+      <div class="cpue-kpi-row">
+        <div class="kpi-card">
+          <span class="cpue-fleet-label menores">Artisanal</span>
+          <div class="kpi-card-value">${fmtVal(kpiMen,0)}</div>
+          <div class="kpi-card-unit">kg / effective day</div>
+          <div class="kpi-card-sub">MENORES · 5-yr mean</div>
+        </div>
+        <div class="kpi-card">
+          <span class="cpue-fleet-label mayores">Industrial</span>
+          <div class="kpi-card-value">${fmtVal(kpiMay,0)}</div>
+          <div class="kpi-card-unit">kg / effective day</div>
+          <div class="kpi-card-sub">MAYORES · 5-yr mean</div>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <div class="section-title" style="margin-bottom:6px">CPUE Trend 2001–2026</div>
+        <div class="chart-wrap" style="height:130px"><canvas id="chartCPUE"></canvas></div>
+      </div>
+    `;
+  } else {
+    cpueSection.innerHTML = `
+      <div class="section-title">Fishing Pressure</div>
+      <div style="padding:12px;background:var(--ink-50);border-radius:6px;font-size:11px;color:var(--ink-400)">
+        <span class="region-badge"><span class="region-dot"></span>${regionLabel || 'Region unassigned'}</span>
+        <span style="display:block;margin-top:8px">CPUE computed on demand in production.</span>
+      </div>
+    `;
+  }
+  el.appendChild(cpueSection);
+
+  // ── Marine Environment ────────────────────────────────────────────────────
+  const envSection = document.createElement('div');
+  envSection.className = 'section';
+  let envHTML = `<div class="section-title">Marine Environment</div>`;
+  if (sstData) {
+    envHTML += `
+      <div style="font-size:10px;font-weight:600;color:var(--ink-600);margin-bottom:2px">Marine Heatwaves (1982–2025)
+        <span style="font-weight:400;color:var(--ink-400)">— days/yr above 90th percentile · OISST</span>
+      </div>
+      <div class="env-chart-wrap"><canvas id="chartMHW"></canvas></div>
+      <div class="env-note">Baseline: 1998–2011 · min 5 consecutive days (Hobday et al. 2016)</div>
+    `;
+  } else {
+    envHTML += `<div style="font-size:11px;color:var(--ink-400);margin-bottom:12px;padding:8px;background:var(--ink-50);border-radius:5px">
+      <span class="pending-tag">SST</span> &nbsp;Outside Gulf of California OISST coverage.</div>`;
+  }
+  if (chlData) {
+    envHTML += `
+      <div style="margin-top:14px;font-size:10px;font-weight:600;color:var(--ink-600);margin-bottom:2px">Chlorophyll-a (2004–2023)
+        <span style="font-weight:400;color:var(--ink-400)">— annual mean · MODIS</span>
+      </div>
+      <div class="env-chart-wrap"><canvas id="chartCHL"></canvas></div>
+      <div class="env-note">Monthly composites averaged annually · mg m⁻³</div>
+    `;
+  } else {
+    envHTML += `<div style="font-size:11px;color:var(--ink-400);margin-top:12px">No Chl-a data for this MPA.</div>`;
+  }
+  envSection.innerHTML = envHTML;
+  el.appendChild(envSection);
+
+  // ── Render charts ─────────────────────────────────────────────────────────
+  requestAnimationFrame(() => {
+
+    // Functional group stacked area
+    if (fg && document.getElementById('chartFuncBiomass')) {
+      const groupOrder = fg.group_order;
+      const colors     = fg.group_colors;
+      const allYears   = [...new Set(groupOrder.flatMap(g => fg.series[g]?.year || []))].sort((a,b)=>a-b);
+      const fgDs = groupOrder.map((g,i) => {
+        const s = fg.series[g];
+        const ym = {};
+        if (s) s.year.forEach((y,j) => { ym[y] = s.biomass[j]; });
+        return {
+          label: g,
+          data: allYears.map(y => ({ x:y, y: ym[y] ?? 0 })),
+          backgroundColor: colors[i]+'CC', borderColor: colors[i], borderWidth:0.8,
+          fill:true, tension:0.3, pointRadius:0, stack:'biomass'
+        };
+      }).reverse();
+      new Chart(document.getElementById('chartFuncBiomass'), {
+        type:'line', data:{datasets:fgDs},
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:true,position:'bottom',
+              labels:{font:{size:9},boxWidth:10,padding:5,reverse:true}},
+            tooltip:{mode:'index',intersect:false} },
+          scales:{ x:{type:'linear',stacked:true,ticks:{font:{size:9},maxTicksLimit:8},grid:{color:'#F1F4F5'}},
+                   y:{stacked:true,title:{display:true,text:'T/ha',font:{size:9}},
+                      ticks:{font:{size:9}},grid:{color:'#F1F4F5'},min:0} }
+        }
+      });
+
+    } else if (bm && document.getElementById('chartBiomass')) {
+      const am = bm.annual_means, tr = bm.trend, ds = [];
+      if (am) ds.push({ label:'Observed', data:am.year.map((y,i)=>({x:y,y:am.mean_biomass_g_m2[i]})),
+        type:'scatter', pointRadius:4, pointBackgroundColor:'#0B2338',
+        pointBorderColor:'#fff', pointBorderWidth:1.5, order:2 });
+      if (tr) {
+        ds.push({ label:'GAM trend', data:tr.year.map((y,i)=>({x:y,y:tr.fit[i]})),
+          type:'line', borderColor:'#1E9EC4', borderWidth:2, pointRadius:0, fill:false, order:1 });
+        ds.push({ label:'95% CI', data:tr.year.map((y,i)=>({x:y,y:tr.upr[i]})),
+          type:'line', borderColor:'transparent', pointRadius:0,
+          backgroundColor:'rgba(30,158,196,0.15)', fill:'+1', order:3 });
+        ds.push({ label:'_ci_lwr', data:tr.year.map((y,i)=>({x:y,y:tr.lwr[i]})),
+          type:'line', borderColor:'transparent', pointRadius:0,
+          backgroundColor:'rgba(30,158,196,0.15)', fill:false, order:4 });
+      }
+      new Chart(document.getElementById('chartBiomass'), {
+        type:'line', data:{datasets:ds},
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},
+          scales:{x:{type:'linear',ticks:{font:{size:10}},grid:{color:'#F1F4F5'}},
+                  y:{title:{display:true,text:'T/ha',font:{size:10}},
+                     ticks:{font:{size:10}},grid:{color:'#F1F4F5'},min:0}}
+        }
+      });
+    }
+
+    // CPUE chart
+    if (cpueReg && document.getElementById('chartCPUE')) {
+      const men = cpueReg.menores, may = cpueReg.mayores, cpueDs = [];
+      if (men) cpueDs.push({ label:'Artisanal (MENORES)',
+        data:men.year.map((y,i)=>({x:y,y:men.cpue[i]})),
+        type:'line', borderColor:'#21925F', borderWidth:2,
+        pointRadius:2.5, pointBackgroundColor:'#21925F', fill:false });
+      if (may) cpueDs.push({ label:'Industrial (MAYORES)',
+        data:may.year.map((y,i)=>({x:y,y:may.cpue[i]})),
+        type:'line', borderColor:'#C6892A', borderWidth:2,
+        pointRadius:2.5, pointBackgroundColor:'#C6892A', fill:false, borderDash:[4,3] });
+      new Chart(document.getElementById('chartCPUE'), {
+        type:'line', data:{datasets:cpueDs},
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{legend:{display:true,position:'bottom',
+              labels:{font:{size:9},boxWidth:12,padding:8}},
+            tooltip:{mode:'index',intersect:false}},
+          scales:{x:{type:'linear',ticks:{font:{size:9},maxTicksLimit:6},grid:{color:'#F1F4F5'}},
+                  y:{title:{display:true,text:'kg/day',font:{size:9}},
+                     ticks:{font:{size:9}},grid:{color:'#F1F4F5'},min:0}}
+        }
+      });
+    }
+
+    // MHW chart — bar (days) + line (SST)
+    if (sstData && document.getElementById('chartMHW')) {
+      const ann = sstData.annual;
+      new Chart(document.getElementById('chartMHW'), {
+        type:'bar',
+        data:{ datasets:[
+          { label:'Heatwave days/yr',
+            data:ann.year.map((y,i)=>({x:y,y:ann.heatwave_days[i]})),
+            backgroundColor:'rgba(204,76,67,0.65)', borderColor:'#CC4C43', borderWidth:0.5,
+            yAxisID:'y', order:2 },
+          { label:'Mean SST (°C)',
+            data:ann.year.map((y,i)=>({x:y,y:ann.mean_temp[i]})),
+            type:'line', borderColor:'#1E9EC4', borderWidth:1.5, pointRadius:0, fill:false,
+            yAxisID:'y2', order:1 }
+        ]},
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{legend:{display:true,position:'bottom',labels:{font:{size:9},boxWidth:10,padding:5}},
+            tooltip:{mode:'index',intersect:false}},
+          scales:{
+            x:{type:'linear',ticks:{font:{size:9},maxTicksLimit:8},grid:{color:'#F1F4F5'}},
+            y:{title:{display:true,text:'MHW days',font:{size:9}},ticks:{font:{size:9}},
+               grid:{color:'#F1F4F5'},min:0,position:'left'},
+            y2:{title:{display:true,text:'°C',font:{size:9}},ticks:{font:{size:9}},
+                grid:{display:false},position:'right'}
+          }
+        }
+      });
+    }
+
+    // Chl-a chart
+    if (chlData && document.getElementById('chartCHL')) {
+      const ann = chlData.annual;
+      new Chart(document.getElementById('chartCHL'), {
+        type:'line',
+        data:{ datasets:[{ label:'Chl-a (mg/m³)',
+          data:ann.year.map((y,i)=>({x:y,y:ann.mean_chla[i]})),
+          borderColor:'#21925F', backgroundColor:'rgba(33,146,95,0.12)',
+          borderWidth:1.8, pointRadius:2.5, pointBackgroundColor:'#21925F',
+          fill:true, tension:0.3 }]},
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},
+          scales:{x:{type:'linear',ticks:{font:{size:9},maxTicksLimit:6},grid:{color:'#F1F4F5'}},
+                  y:{title:{display:true,text:'mg/m³',font:{size:9}},
+                     ticks:{font:{size:9}},grid:{color:'#F1F4F5'},min:0}}
+        }
+      });
+    }
+
+  }); // end rAF
+}
+
+} // end init
+</script>
+</body>
+</html>
