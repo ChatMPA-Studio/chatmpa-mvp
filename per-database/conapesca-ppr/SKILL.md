@@ -1,5 +1,7 @@
 ---
 name: conapesca-ppr
+version: 0.1.0
+tier: 1
 description: >
   Estimate the ecological footprint of a fishery by calculating the Primary
   Production Required (PPR) to sustain observed catches at a marine protected
@@ -7,6 +9,66 @@ description: >
   phytoplankton the fishery consumes, what the trophic footprint of a species
   or fleet is, or whether fishing pressure is ecologically costly relative to
   the trophic level of the target species.
+inputs:
+  species:
+    type: string_vector
+    required: true
+    description: >
+      One or more canonical scientific names (`nombre_cientifico_canonico`).
+      Must match the database exactly.
+  state_filter:
+    type: string
+    required: true
+    description: >
+      Estado de la oficina de desembarque (`nombre_estado`). Defines regional
+      scope and disambiguates office names across states.
+  office_filter:
+    type: string
+    required: false
+    description: >
+      Landing office (`nombre_oficina`) within `state_filter`. If provided,
+      adds local-scale series. Never use without `state_filter`.
+  ww_to_carbon:
+    type: number
+    required: false
+    default: 9
+    description: >
+      Wet-weight-to-carbon conversion ratio (kg wet wt per kg C). Default 9
+      per Pauly & Christensen (1995).
+  te:
+    type: number
+    required: false
+    default: 0.1
+    description: >
+      Trophic transfer efficiency. Must be in (0, 1). Default 0.1.
+  tl_override:
+    type: named_numeric
+    required: false
+    description: >
+      User-supplied trophic level per species, e.g. {"Lutjanus peru": 3.2}.
+      Takes precedence over catalog values. Required when any species has
+      NA trophic_level in the catalog.
+acquire:
+  - source: payload
+    as: data
+    columns:
+      - anio_corte
+      - tipo_aviso
+      - nombre_estado
+      - nombre_oficina
+      - nombre_cientifico_canonico
+      - trophic_level
+      - peso_desembarcado_kg
+# Sin `output.table`: run_skill() devuelve un solo data.frame.
+# Skill determinista — fórmula cerrada, sin resampling.
+comparable_value: [ppr_kg_c, trophic_level_used]
+reference: references/cabo_pulmo_ppr_reference.json
+validation:
+  params:
+    species: [Lutjanus argentiventris]
+    state_filter: BAJA CALIFORNIA SUR
+    office_filter: CABO SAN LUCAS
+depends_on: []
 ---
 
 # CONAPESCA — Primary Production Required (PPR)

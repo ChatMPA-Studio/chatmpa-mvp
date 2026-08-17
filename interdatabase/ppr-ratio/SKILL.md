@@ -1,5 +1,7 @@
 ---
 name: ppr-ratio
+version: 0.1.0
+tier: 1
 description: >
   Estimate what fraction of the ocean's primary production is consumed by a
   fishery at a marine protected area, by combining the Primary Production
@@ -7,6 +9,37 @@ description: >
   AMP. Fires on questions about the ecological footprint of fishing relative to
   ecosystem productivity, whether a fishery is sustainable given local ocean
   conditions, or how fishing pressure scales with primary production across years.
+inputs:
+  amp_area_km2:
+    type: number
+    required: true
+    description: >
+      Area of the AMP polygon in km². Computed by the orchestrator from
+      geometry_local via st_area(). Must be a single positive number.
+acquire:
+  - source: skill_output
+    skill: conapesca-ppr
+    as: data_ppr
+    columns:
+      - anio_corte
+      - tipo_aviso
+      - nombre_cientifico_canonico
+      - ppr_kg_c
+  - source: skill_output
+    skill: erddap-pp
+    as: data_pp
+    columns:
+      - year
+      - pp_geomean
+      - cobertura_pct
+output.table: annual
+# Fórmula cerrada — determinista. Se comparan las columnas del resultado anual.
+comparable_value: [ppr_pct, ppr_total_kg_c, pp_total_kg_c]
+reference: references/cabo_pulmo_pprratio_reference.json
+validation:
+  params:
+    amp_area_km2: 71.0  # área marina de Cabo Pulmo NP en km²
+depends_on: [conapesca-ppr, erddap-pp]
 ---
 
 # %PPR — Fraction of Primary Production Required by the Fishery

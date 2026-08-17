@@ -1,5 +1,7 @@
 ---
 name: erddap-sst-anomaly
+version: 0.1.0
+tier: 1
 description: >
   Assess thermal conditions and warming trends at a marine protected area and
   its surrounding Large Marine Ecosystem, reporting annual SST anomalies at
@@ -7,6 +9,31 @@ description: >
   thermal stress on reef communities, El Niño/La Niña impacts on a specific
   protected area, or how local sea surface temperature compares to the regional
   trend.
+inputs: {}
+acquire:
+  # El orquestador llama al MCP de ERDDAP (dos calls: sst y anom) y los manda
+  # en el body fusionados. Dataset: ncdcOisst21Agg_LonPM180 (OISST v2.1, 0.25°).
+  - source: payload
+    as: data
+    columns:
+      - lat
+      - lon
+      - time
+      - sst
+      - anom
+  - source: payload
+    as: geometry_local
+    type: sf
+  - source: payload
+    as: geometry_regional
+    type: sf
+# Sin `output.table`: run_skill() devuelve un solo data.frame con ambas escalas.
+# Skill determinista — media aritmética anual, sin bootstrap.
+comparable_value: [sst_media, anomalia_media]
+reference: references/cabo_pulmo_sst_reference.json
+validation:
+  params: {}
+depends_on: []
 ---
 
 # ERDDAP SST Anomaly — Thermal context for MPAs

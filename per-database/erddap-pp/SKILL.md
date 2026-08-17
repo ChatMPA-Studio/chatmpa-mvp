@@ -1,11 +1,37 @@
 ---
 name: erddap-pp
+version: 0.1.0
+tier: 1
 description: >
   Assess primary productivity levels and trends at a marine protected area and
   its surrounding Large Marine Ecosystem, reporting annual net primary production
   geometric means and anomalies at local and regional scales. Fires on questions
   about ocean productivity near an AMP, phytoplankton growth efficiency, carbon
   flux into the food web, or how local production compares to regional patterns.
+inputs: {}
+acquire:
+  # El orquestador llama al MCP de ERDDAP y manda los datos en el body.
+  # Dataset: erdMH1pp8day (MODIS Aqua 8-day NPP, 4 km).
+  - source: payload
+    as: data
+    columns:
+      - lat
+      - lon
+      - time
+      - pp
+  - source: payload
+    as: geometry_local
+    type: sf
+  - source: payload
+    as: geometry_regional
+    type: sf
+# Sin `output.table`: run_skill() devuelve un solo data.frame con ambas escalas.
+# Skill determinista — media geométrica log10, sin bootstrap.
+comparable_value: [pp_geomean, anomalia_log10]
+reference: references/cabo_pulmo_pp_reference.json
+validation:
+  params: {}
+depends_on: []
 ---
 
 # ERDDAP Primary Productivity — Production context for MPAs

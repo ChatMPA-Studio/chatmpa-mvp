@@ -11,6 +11,11 @@
 source(file.path(dirname(sys.frame(1)$ofile),
                  "../../shared/spatial_join/spatial_join.R"))
 
+if (!exists("before_after", mode = "function")) {
+  source(file.path(dirname(sys.frame(1)$ofile),
+                   "../../shared/interpretation/interpret.R"))
+}
+
 # ── Constants (fixed — do not change without updating SKILL.md) ──────────────
 
 .COVERAGE_THRESHOLD <- 50   # % of valid pixel-days below which year = NA
@@ -106,6 +111,62 @@ run_skill <- function(data, geometry_local, geometry_regional, ...) {
   value <- do.call(rbind, results)
   rownames(value) <- NULL
 
+  # ── Interpretation ────────────────────────────────────────────────────────
+  # Uses local-scale annual means; before = 1982-2000 pre-warming baseline.
+
+  local_val <- value[value$escala == "local" & !is.na(value$sst_media), ]
+
+  ba_sst  <- before_after(local_val, "sst_media", year_col = "year",
+                           before_years = 1982:2000, recent_n = 5L)
+  mkt_sst <- mk_trend(local_val, "sst_media", year_col = "year")
+
+  after_stress_n <- if (!is.null(ba_sst$after_period)) {
+    after_rows <- local_val[
+      local_val$year >= ba_sst$after_period[1] &
+      local_val$year <= ba_sst$after_period[2], ]
+    sum(after_rows$stress_flag == TRUE, na.rm = TRUE)
+  } else 0L
+
+  sst_status <- if (!is.null(ba_sst$status)) "neutral" else {
+    if      (after_stress_n >= 3) "negative"
+    else if (after_stress_n == 0 && abs(ba_sst$delta) <= 0.1) "positive"
+    else "neutral"
+  }
+
+  sst_sentences <- if (!is.null(ba_sst$status)) {
+    list(en = NA_character_, es = NA_character_)
+  } else {
+    stress_note_en <- paste0(after_stress_n, " of the last 5 years exceeded ",
+                             "the +0.5°C stress threshold.")
+    stress_note_es <- paste0(after_stress_n, " de los últimos 5 años superaron ",
+                             "el umbral de estrés de +0.5°C.")
+    insight_sentence(
+      var_label_en  = "Mean SST",
+      var_label_es  = "La temperatura superficial del mar (SST)",
+      unit          = "°C",
+      before_mean   = ba_sst$before_mean, after_mean = ba_sst$after_mean,
+      delta         = ba_sst$delta,       pct_change = ba_sst$pct_change,
+      before_period = ba_sst$before_period, after_period = ba_sst$after_period,
+      extra_en      = stress_note_en,     extra_es   = stress_note_es,
+      digits        = 2L
+    )
+  }
+
+  interpretation <- list(
+    before_period       = ba_sst$before_period,
+    after_period        = ba_sst$after_period,
+    metric_before       = ba_sst$before_mean,
+    metric_after        = ba_sst$after_mean,
+    delta               = ba_sst$delta,
+    pct_change          = ba_sst$pct_change,
+    direction           = if (!is.null(ba_sst$direction)) ba_sst$direction else "unknown",
+    status              = sst_status,
+    stress_years_recent = after_stress_n,
+    significance        = mkt_sst,
+    insight_es          = sst_sentences$es,
+    insight_en          = sst_sentences$en
+  )
+
   # ── Return ────────────────────────────────────────────────────────────────
 
   list(
@@ -116,6 +177,7 @@ run_skill <- function(data, geometry_local, geometry_regional, ...) {
       "Years with cobertura_pct < ", .COVERAGE_THRESHOLD, "% returned as NA. ",
       "Dataset: ncdcOisst21Agg_LonPM180, NOAA CoastWatch ERDDAP."
     ),
+    interpretation = interpretation,
     params = list(
       coverage_threshold_pct = .COVERAGE_THRESHOLD,
       stress_threshold_c     = .STRESS_THRESHOLD,

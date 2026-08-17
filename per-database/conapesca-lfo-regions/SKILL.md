@@ -1,5 +1,7 @@
 ---
 name: conapesca-lfo-regions
+version: 0.1.0
+tier: 2
 description: >
   Cluster CONAPESCA fishing offices into discrete fishing regions based on
   the similarity of their catch composition, and produce a lookup table
@@ -8,6 +10,28 @@ description: >
   on the number of regions. The output lookup is consumed by downstream
   skills that require regional fishing pressure (e.g. conapesca-cpue at
   regional scale). Must be preceded by conapesca-lfo-ca.
+inputs:
+  k:
+    type: integer
+    required: true
+    description: >
+      Number of fishing regions (clusters). Must satisfy 2 ≤ k ≤ n_lfo − 1.
+      Chosen by the user after reviewing the WK/KL table from conapesca-lfo-ca.
+      The k_optimal_kl from that skill is a suggestion, not a mandate.
+acquire:
+  - source: skill_output
+    skill: conapesca-lfo-ca
+    as: ca_output
+    fields: [ca_scores_lfo, kl_table, k_optimal_kl]
+output.table: lookup
+# k-means con seed=42 — determinista. Se compara el WK final (within-cluster SS)
+# para detectar si el clustering corrió con la misma semilla.
+comparable_value: [wk_final]
+reference: references/nwmexico_regions_reference.json
+validation:
+  params:
+    k: 7
+depends_on: [conapesca-lfo-ca]
 ---
 
 # CONAPESCA LFO Regions — k-means clustering and region lookup

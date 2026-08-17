@@ -1,5 +1,7 @@
 ---
 name: conapesca-cpue
+version: 0.1.0
+tier: 1
 description: >
   Estimate fishing pressure on a target species from CONAPESCA landing records,
   by computing CPUE (catch per unit effort) as a time series at regional and
@@ -7,6 +9,64 @@ description: >
   time for a given species in a given state, how pressure near a marine protected
   area compares with the state-level trend, or which fleet type (industrial vs.
   artisanal) drives landings.
+inputs:
+  species:
+    type: string
+    required: true
+    description: >
+      Nombre científico canónico (`nombre_cientifico_canonico`), tal cual está
+      en la base de CONAPESCA — p. ej. "Lutjanus peru". No acepta nombres
+      comunes: "pargo" tiene que resolverse antes de llegar acá.
+  state_filter:
+    type: string
+    required: true
+    description: >
+      Estado de la oficina de desembarque (`nombre_estado`), p. ej.
+      "BAJA CALIFORNIA SUR". Define la escala regional, y es obligatorio
+      también cuando se pide la local.
+  office_filter:
+    type: string
+    required: false
+    description: >
+      Oficina de desembarque (`nombre_oficina`) dentro de `state_filter`,
+      p. ej. "CABO SAN LUCAS". Si viene, se agrega la serie de escala local.
+      Nunca va sin `state_filter`: los nombres de oficina no son únicos entre
+      estados (EL ROSARIO existe en Baja California y en Sinaloa).
+acquire:
+  # El MCP de CONAPESCA ya devuelve este contrato completo y sin tope de filas
+  # vía get_landings(group_by="folio"), así que el orquestador trae la tabla y
+  # la manda en el body. No hay razón para que el servicio la baje de nuevo.
+  - source: payload
+    as: data
+    columns:
+      - folio_aviso
+      - anio_corte
+      - tipo_aviso
+      - nombre_estado
+      - nombre_oficina
+      - nombre_cientifico_canonico
+      - peso_desembarcado_kg
+      - dias_efectivos
+      - dias_efectivos_fuente
+      - flag_fecha_generica
+      - flag_dias_efectivos_sospechoso
+      - flag_periodo_futuro
+# Sin `output.table`: run_skill() devuelve un solo data.frame, no una lista de
+# tablas, y ahí no hay nada que elegir.
+#
+# Skill determinista (sin controles aleatorios), así que las corridas deben
+# coincidir exactamente. Se comparan las dos columnas calculadas: `cpue_media`
+# sola dejaría pasar un cambio que solo afecte la dispersión.
+comparable_value: [cpue_media, cpue_sd]
+reference: references/cabo_pulmo_cpue_reference.json
+# Con qué corre el ARNÉS contra el fixture. No son defaults del API: `species`
+# y `state_filter` siguen siendo obligatorios en toda llamada real.
+validation:
+  params:
+    species: Lutjanus peru
+    state_filter: BAJA CALIFORNIA SUR
+    office_filter: CABO SAN LUCAS
+depends_on: []
 ---
 
 # CONAPESCA CPUE — Índice de presión pesquera

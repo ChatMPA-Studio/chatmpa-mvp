@@ -1,5 +1,7 @@
 ---
 name: eda-multivariate
+version: 0.1.0
+tier: 1
 description: >
   Explore the structure of a multivariate annual time series before committing
   to a specific analysis. Computes summary statistics, normality checks,
@@ -7,6 +9,28 @@ description: >
   variables simultaneously. Fires on questions about data structure, whether
   variables are correlated, whether there are temporal trends worth noting,
   or when the user wants to understand the data before choosing an analysis.
+inputs:
+  sections:
+    type: string_vector
+    required: false
+    default: "[summary, normality, trends, correlations, outliers, crosscorr]"
+    description: >
+      Subset of EDA sections to compute. Valid values: summary, normality,
+      trends, correlations, outliers, crosscorr. Default: all sections.
+acquire:
+  # El orquestador alinea los outputs de las per-database skills por año y
+  # manda la tabla en el body. Columna `year` obligatoria; el resto son variables.
+  - source: payload
+    as: data
+    columns:
+      - year  # más una columna por variable; nombres definidos por el orquestador
+output.table: trends
+# Determinista. Se comparan tau y dirección del Mann-Kendall por variable.
+comparable_value: [tau, p_value_hr, direction]
+reference: references/cabo_pulmo_eda_reference.json
+validation:
+  params: {}
+depends_on: []
 ---
 
 # EDA Multivariado — Exploratory Data Analysis for annual ecological time series

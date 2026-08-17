@@ -7,6 +7,11 @@
 # Reference: ltem_report/workshops/datamares/2026/generate_datamares_2026.R
 #            gam_trend() and FIG07 section.
 
+if (!exists("before_after", mode = "function")) {
+  source(file.path(dirname(sys.frame(1)$ofile),
+                   "../../shared/interpretation/interpret.R"))
+}
+
 # ── Constants (fixed — do not change without updating SKILL.md) ──────────────
 
 .K_MAX        <- 10L   # maximum smoothing knots for s(year)
@@ -158,6 +163,52 @@ run_skill <- function(data, data_func = NULL, ...) {
     }
   }
 
+  # ── Interpretation ────────────────────────────────────────────────────────
+
+  ba  <- before_after(annual_means, "mean_biomass_g_m2",
+                      before_years = head(all_years, .KPI_YEARS),
+                      recent_n     = .KPI_YEARS)
+  mkt <- mk_trend(annual_means, "mean_biomass_g_m2")
+
+  bio_status <- if (!is.null(ba$status)) "neutral" else {
+    p_val <- if (!is.null(mkt$p)) mkt$p else 1
+    if      (ba$direction == "increasing" && p_val < 0.10) "positive"
+    else if (ba$direction == "decreasing" && p_val < 0.10) "negative"
+    else "neutral"
+  }
+
+  bio_sentences <- if (!is.null(ba$status)) {
+    list(en = NA_character_, es = NA_character_)
+  } else {
+    mk_note_en <- if (!is.null(mkt$p) && mkt$p < 0.10)
+      paste0("Mann-Kendall trend: τ = ", mkt$tau, ", p = ", mkt$p, ".") else NULL
+    mk_note_es <- if (!is.null(mkt$p) && mkt$p < 0.10)
+      paste0("Tendencia Mann-Kendall: τ = ", mkt$tau, ", p = ", mkt$p, ".") else NULL
+    insight_sentence(
+      var_label_en  = "Fish biomass",
+      var_label_es  = "La biomasa de peces",
+      unit          = "g/m²",
+      before_mean   = ba$before_mean, after_mean = ba$after_mean,
+      delta         = ba$delta,       pct_change = ba$pct_change,
+      before_period = ba$before_period, after_period = ba$after_period,
+      extra_en      = mk_note_en,     extra_es   = mk_note_es
+    )
+  }
+
+  interpretation <- list(
+    before_period = ba$before_period,
+    after_period  = ba$after_period,
+    metric_before = ba$before_mean,
+    metric_after  = ba$after_mean,
+    delta         = ba$delta,
+    pct_change    = ba$pct_change,
+    direction     = if (!is.null(ba$direction)) ba$direction else "unknown",
+    status        = bio_status,
+    significance  = mkt,
+    insight_es    = bio_sentences$es,
+    insight_en    = bio_sentences$en
+  )
+
   # ── Return ────────────────────────────────────────────────────────────────
 
   k_used <- min(.K_MAX, n_unique_years - 1L)
@@ -169,6 +220,7 @@ run_skill <- function(data, data_func = NULL, ...) {
       annual_means      = annual_means,
       functional_groups = func_out
     ),
+    interpretation = interpretation,
     method = paste0(
       "KPI: observed mean biomass across most recent ", length(kpi_years), " survey years ",
       "(arithmetic mean of per-year reef means). ",

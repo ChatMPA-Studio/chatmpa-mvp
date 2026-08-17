@@ -1,221 +1,359 @@
-[
-  {
-    "skill": "erddap-sst-anomaly",
-    "display": "both",
-    "data_source": "ERDDAP (OISST v2.1, NOAA)",
-    "kpi": {
-      "label": "Sea Surface Temperature",
-      "metric": "sst_mean_C",
-      "unit": "°C",
-      "description": "Mean annual SST at the MPA (local scale)",
-      "scale": "local"
-    },
-    "plot": {
-      "type": "time_series",
-      "y_metric": "sst_anom_C",
-      "y_label": "SST Anomaly (°C)",
-      "x_label": "Year",
-      "description": "Annual SST anomaly relative to 1971–2000 NOAA climatology",
-      "period": "1981–present",
-      "show_zero_line": true
+{
+  "_comment": "Machine-readable KPI + plot spec for the chatMPA dashboard. Engineers use this to know what to render per skill. Biomass unit is T/ha (1 T/ha = 100 g/m²). See DASHBOARD.md for full display guidance.",
+  "_generated": "2026-08-17",
+  "_design_change": "MPA panel and Fisheries Office panel are now separate. CONAPESCA CPUE moved entirely to Panel B (office click). MPA panel (Panel A) shows only LTEM + environmental data. Panel B adds species/group selector and economic KPI placeholders.",
+  "_interpretation_schema": {
+    "_note": "Every skill now returns an 'interpretation' block alongside its numerical output. Schema is identical across all skills except conapesca-cpue (which has per-fleet sub-blocks under 'menores' / 'mayores'). Fields:",
+    "before_period": "integer[2] — c(year_start, year_end) of the reference period",
+    "after_period":  "integer[2] — c(year_start, year_end) of the recent period",
+    "metric_before": "numeric — mean of the primary KPI metric in the before period",
+    "metric_after":  "numeric — mean in the after period",
+    "delta":         "numeric — after_mean − before_mean (native units)",
+    "pct_change":    "numeric — (delta / |before|) × 100, or null if before ≈ 0",
+    "direction":     "string — 'increasing' | 'decreasing' | 'stable'",
+    "status":        "string — 'positive' | 'neutral' | 'negative' | 'ambiguous'",
+    "significance":  "object — Mann-Kendall result: {method, tau, p, direction} or {status: 'insufficient_data'}",
+    "stress_years_recent": "(SST only) integer — count of recent years exceeding +0.5°C anomaly threshold",
+    "insight_es":    "string — one-sentence Spanish ecological insight",
+    "insight_en":    "string — one-sentence English ecological insight",
+    "_status_logic": {
+      "ltem-fish-biomass":    "positive if increasing + MK p<0.10; negative if decreasing + p<0.10; else neutral",
+      "ltem-nrsi-index":      "positive if after>0 AND increasing; negative if after<-0.15 OR (delta<-0.1 AND p<0.10); else neutral",
+      "erddap-sst-anomaly":   "negative if ≥3 of last 5 years exceed +0.5°C; positive if ≤0 stress years AND |delta|≤0.1°C; else neutral",
+      "erddap-chlorophyll":   "always ambiguous — direction alone not ecological signal",
+      "conapesca-cpue":       "always ambiguous — CPUE paradox: declining CPUE may reflect effort change or stock depletion"
     }
   },
-  {
-    "skill": "erddap-chlorophyll",
-    "display": "both",
-    "data_source": "ERDDAP (MODIS Aqua, 8-day composites)",
-    "kpi": {
-      "label": "Chlorophyll-a",
-      "metric": "chl_geomean_mg_m3",
-      "unit": "mg/m³",
-      "description": "Annual geometric mean Chl-a at the MPA (local scale)",
-      "scale": "local"
+  "skills": [
+    {
+      "skill": "ltem-fish-biomass",
+      "source": "LTEM MCP",
+      "display": "both",
+      "kpi": {
+        "label": "FISH BIOMASS",
+        "metric": "mean_biomass",
+        "unit": "T/ha",
+        "aggregation": "5-year mean of annual means",
+        "panel_card_index": 1,
+        "format": "toFixed(2)",
+        "sub": "Mean · 5-yr surveys · LTEM",
+        "scale": "MPA (LTEM region)",
+        "null_display": "—"
+      },
+      "plot": {
+        "type": "stacked_area",
+        "title": "Fish Biomass — Trophic Structure",
+        "y_axis_label": "T/ha",
+        "y_min": 0,
+        "stack_key": "biomass",
+        "series": [
+          { "id": "GenPred_solitary",  "label": "Depredadores solitarios",    "color": "#D73027", "source_field": "functional_groups.series.Depredadores solitarios" },
+          { "id": "GenPred_schooling", "label": "Depredadores en cardúmenes", "color": "#FC8D59", "source_field": "functional_groups.series.Depredadores en cardúmenes" },
+          { "id": "EpiBent_schooling", "label": "Omnívoros en cardúmen",      "color": "#FEE08B", "source_field": "functional_groups.series.Omnívoros en cardúmen" },
+          { "id": "Crip_schooling",    "label": "Herbívoros en cardúmen",     "color": "#91BFDB", "source_field": "functional_groups.series.Herbívoros en cardúmen" },
+          { "id": "Crip_solitary",     "label": "Crípticos solitarios",       "color": "#4575B4", "source_field": "functional_groups.series.Crípticos solitarios" },
+          { "id": "Plank",             "label": "Planctívoros",               "color": "#313695", "source_field": "functional_groups.series.Planctívoros" }
+        ],
+        "fill_opacity": 0.8,
+        "tension": 0.3,
+        "point_radius": 0,
+        "legend_position": "bottom",
+        "legend_reverse": true,
+        "height_px": 190,
+        "fallback": {
+          "condition": "functional_groups is null AND biomass exists",
+          "type": "line_with_scatter",
+          "title": "Fish Biomass — GAM Trend",
+          "height_px": 155,
+          "series": [
+            {
+              "id": "observed",
+              "label": "Annual mean",
+              "source_field": "biomass.annual_means.mean_biomass_g_m2",
+              "type": "scatter",
+              "color": "#0B2338",
+              "point_border": "white"
+            },
+            {
+              "id": "gam_fit",
+              "label": "GAM trend",
+              "source_field": "biomass.trend.fit",
+              "type": "line",
+              "color": "#1E9EC4",
+              "width_px": 2
+            },
+            {
+              "id": "gam_ci",
+              "label": "95% CI",
+              "source_fields": ["biomass.trend.lwr", "biomass.trend.upr"],
+              "type": "area_band",
+              "color": "rgba(30,158,196,0.15)"
+            }
+          ],
+          "annotations": [
+            { "condition": "dev_expl_pct exists", "text": "GAM dev.expl.: {dev_expl_pct}%", "color": "#808E97" }
+          ]
+        },
+        "scale": "MPA (LTEM region)"
+      },
+      "data_path": "mpa_data.{mpa_name}",
+      "notes": "Primary display: functional_groups stacked area. Fallback to GAM trend if functional_groups is absent. Field 'mean_biomass_g_m2' stores T/ha — display as T/ha."
     },
-    "plot": {
-      "type": "time_series",
-      "y_metric": "chl_anom_mg_m3",
-      "y_label": "Chl-a Anomaly (mg/m³)",
-      "x_label": "Year",
-      "description": "Annual Chl-a anomaly relative to 2003–2020 baseline",
-      "period": "2003–present",
-      "show_zero_line": true
-    }
-  },
-  {
-    "skill": "erddap-pp",
-    "display": "both",
-    "data_source": "ERDDAP (MODIS Aqua, 8-day composites)",
-    "kpi": {
-      "label": "Net Primary Production",
-      "metric": "npp_geomean_mgC_m2_day",
-      "unit": "mgC/m²/day",
-      "description": "Annual geometric mean NPP at the MPA (local scale)",
-      "scale": "local"
+    {
+      "skill": "ltem-invertebrate-abundance",
+      "source": "LTEM MCP",
+      "display": "both",
+      "kpi": {
+        "taxa": [
+          {
+            "taxon": "Echinoidea",
+            "label": "INVERTEBRATES",
+            "panel_card_index": 2,
+            "metric": "mean_abundance_per_transect",
+            "unit": "ind. / transect",
+            "format": "toFixed(1)",
+            "sub": "Echinoidea · LTEM",
+            "color": "#1E9EC4",
+            "note": "Echinoidea chosen as representative KPI. Full 4-taxon time series available in the plot."
+          }
+        ]
+      },
+      "plot": {
+        "type": "facet_line_with_scatter",
+        "title": "Invertebrate Abundance",
+        "layout": "single_column_stacked",
+        "facets": [
+          { "taxon": "Echinoidea",   "label": "Echinoidea",   "description": "Sea urchins — reef grazers",           "color": "#1E9EC4", "order": 1 },
+          { "taxon": "Asteroidea",   "label": "Asteroidea",   "description": "Sea stars — predators",                "color": "#21925F", "order": 2 },
+          { "taxon": "Holaxonia",    "label": "Holaxonia",    "description": "Gorgonian corals — structural habitat", "color": "#7C5A93", "order": 3 },
+          { "taxon": "Scleractinia", "label": "Scleractinia", "description": "Stony corals — reef builders",          "color": "#C6892A", "order": 4 }
+        ],
+        "y_axis_label": "ind. / transect",
+        "y_min": 0,
+        "per_facet_height_px": 95,
+        "series_per_facet": [
+          { "id": "observed", "source_field": "annual_means.mean_abundance_per_transect", "type": "scatter",    "size_px": 2.5 },
+          { "id": "gam_fit",  "source_field": "trend.fit",                                "type": "line",       "width_px": 1.5 },
+          { "id": "gam_ci",   "source_fields": ["trend.lwr", "trend.upr"],                "type": "area_band",  "opacity_hex": "28" }
+        ],
+        "scale": "MPA (LTEM region)"
+      },
+      "data_path": "mpa_data.{mpa_name}.invertebrates",
+      "notes": "Skip facets with no data for this MPA — do not render empty frames."
     },
-    "plot": {
-      "type": "time_series",
-      "y_metric": "npp_anom_mgC_m2_day",
-      "y_label": "NPP Anomaly (mgC/m²/day)",
-      "x_label": "Year",
-      "description": "Annual NPP anomaly relative to 2003–2020 baseline",
-      "period": "2003–present",
-      "show_zero_line": true
-    }
-  },
-  {
-    "skill": "ltem-nrsi-index",
-    "display": "both",
-    "data_source": "LTEM (reef fish surveys)",
-    "kpi": {
-      "label": "Reef Trophic Health (NRSI)",
-      "metric": "nrsi_mean",
-      "unit": "dimensionless (−1 to +1)",
-      "description": "Mean Normalized Reef State Index across monitored reefs",
-      "scale": "site",
-      "categories": {
-        "Excellent": [0.5, 1.0],
-        "Good": [0.0, 0.5],
-        "Degraded": [-0.5, 0.0],
-        "Severely degraded": [-1.0, -0.5]
-      }
+    {
+      "skill": "conapesca-cpue",
+      "source": "CONAPESCA RDS (aggregated by region)",
+      "panel": "B",
+      "display": "both",
+      "species_selector": {
+        "type": "pill_toggle",
+        "default": "all",
+        "options": [
+          { "value": "all",               "label_es": "Todas las especies",  "description": "Fleet aggregate — all species combined" },
+          { "value": "pelagicos_menores",  "label_es": "Pelágicos menores",   "description": "Sardine, mackerel, anchovy" },
+          { "value": "pelagicos_mayores",  "label_es": "Pelágicos mayores",   "description": "Tuna, swordfish, marlin" },
+          { "value": "demersales",         "label_es": "Demersales",          "description": "Snapper, grouper, corvina" },
+          { "value": "escama",             "label_es": "Escama",              "description": "General finfish" },
+          { "value": "invertebrados",      "label_es": "Invertebrados",       "description": "Shrimp, octopus, sea cucumber, urchin" }
+        ],
+        "note": "Species-level data available once Carolina's skills are integrated. Render selector UI now; use fleet aggregate for all selections in demo."
+      },
+      "kpi": {
+        "fleets": [
+          {
+            "fleet": "MENORES",
+            "label": "ART. CPUE",
+            "metric": "kpi_menores_mean_cpue",
+            "unit": "kg / eff. day",
+            "format": "toFixed(0)",
+            "sub": "MENORES · 5-yr mean",
+            "color": "#21925F",
+            "tag_bg": "#DBEFE5"
+          },
+          {
+            "fleet": "MAYORES",
+            "label": "IND. CPUE",
+            "metric": "kpi_mayores_mean_cpue",
+            "unit": "kg / eff. day",
+            "format": "toFixed(0)",
+            "sub": "MAYORES · 5-yr mean",
+            "color": "#C6892A",
+            "tag_bg": "#F6E9CF"
+          }
+        ]
+      },
+      "plot": {
+        "type": "multi_line",
+        "title": "CPUE Trend 2001–2026",
+        "y_axis_label": "kg / effective day",
+        "y_min": 0,
+        "height_px": 150,
+        "series": [
+          { "id": "menores", "label": "Artisanal (MENORES)", "source_field": "menores.cpue", "x_field": "menores.year", "color": "#21925F", "line_style": "solid",  "dash_pattern": null, "width_px": 1.8 },
+          { "id": "mayores", "label": "Industrial (MAYORES)", "source_field": "mayores.cpue", "x_field": "mayores.year", "color": "#C6892A", "line_style": "dashed", "dash_pattern": [4,3], "width_px": 1.8 }
+        ],
+        "note": "Regional aggregate · CONAPESCA · {region_name}",
+        "scale": "CONAPESCA fishing region"
+      },
+      "economic_kpis": {
+        "status": "coming_soon",
+        "skills_owner": "Carolina",
+        "placeholder_text_es": "Indicadores económicos en desarrollo.",
+        "placeholder_text_en": "Economic indicators coming soon — skills in development.",
+        "planned_kpis": [
+          { "id": "landed_value",       "label": "Economic value of catch", "unit": "MXN million/yr" },
+          { "id": "revenue_per_fisher", "label": "Revenue per fisher",      "unit": "MXN/yr" },
+          { "id": "employment",         "label": "Employment (artisanal)",  "unit": "registered fishers" },
+          { "id": "dependency_index",   "label": "Fishing dependency",      "unit": "% of municipal income" }
+        ]
+      },
+      "data_path": "cpue_regions.{conapesca_region_id}",
+      "notes": "Panel B only — shown when user clicks a fishing office, not an MPA. CPUE is regional, not per-office. All offices in the same region share the same time series."
     },
-    "plot": {
-      "type": "time_series_with_ci",
-      "y_metric": "nrsi",
-      "y_label": "NRSI",
-      "x_label": "Year",
-      "description": "Annual NRSI per reef with 95% bootstrap confidence intervals",
-      "period": "1998–present",
-      "show_zero_line": true,
-      "show_ci": true
-    }
-  },
-  {
-    "skill": "ltem-fish-biomass",
-    "display": "both",
-    "data_source": "LTEM (reef fish surveys)",
-    "kpi": {
-      "label": "Fish Biomass",
-      "metric": "mean_biomass_g_m2",
-      "unit": "g/m²",
-      "description": "Mean fish biomass across monitored reefs (most recent 5 years)",
-      "scale": "region"
+    {
+      "skill": "erddap-sst-anomaly",
+      "source": "NOAA OISST daily (local .fst copy)",
+      "display": "both",
+      "status": "available_goc_only",
+      "kpi": {
+        "label": "SST",
+        "panel_card_index": 5,
+        "metric": "kpi_mean_sst_c",
+        "unit": "°C · OISST",
+        "format": "toFixed(1)",
+        "sub": "{kpi_years} · {kpi_mhw_days_per_yr} MHW days/yr",
+        "null_display": "—",
+        "null_tag": "GoC only",
+        "null_sub": "Outside GoC coverage",
+        "scale": "MPA bounding box"
+      },
+      "plot": {
+        "type": "combo_bar_line",
+        "title": "Marine Heatwaves",
+        "section": "marine-environment",
+        "height_px": 130,
+        "series": [
+          {
+            "id": "heatwave_days",
+            "label": "Heatwave days/yr",
+            "source_field": "sst.annual.heatwave_days",
+            "x_field": "sst.annual.year",
+            "type": "bar",
+            "color": "rgba(204,76,67,0.65)",
+            "border_color": "#CC4C43",
+            "y_axis": "left"
+          },
+          {
+            "id": "mean_sst",
+            "label": "Mean SST (°C)",
+            "source_field": "sst.annual.mean_temp",
+            "x_field": "sst.annual.year",
+            "type": "line",
+            "color": "#1E9EC4",
+            "width_px": 1.5,
+            "y_axis": "right"
+          }
+        ],
+        "y_left_label": "MHW days",
+        "y_right_label": "°C",
+        "note": "Baseline: 1998–2011 · min 5 consecutive days (Hobday et al. 2016)",
+        "scale": "MPA bounding box — GoC only (lon −115.875 to −105.875, lat 22.125 to 31.625)"
+      },
+      "data_path": "mpa_data.{mpa_name}.sst",
+      "notes": "sst is null for MPAs outside GoC bbox (Islas Marietas, Huatulco, Revillagigedo). Show 'GoC only' tag in KPI card. MHW baseline 1998-01-01 to 2011-12-31."
     },
-    "plot": {
-      "type": "time_series_gam",
-      "y_metric": "biomass_g_m2",
-      "y_label": "Fish Biomass (g/m²)",
-      "x_label": "Year",
-      "description": "Annual observed means (points) with GAM smooth trend ± 95% CI (reef random effect excluded)",
-      "period": "1998–present",
-      "show_ci": true,
-      "overlay": "observed_annual_means"
-    }
-  },
-  {
-    "skill": "ltem-invertebrate-abundance",
-    "display": "both",
-    "data_source": "LTEM (reef invertebrate surveys)",
-    "kpi": {
-      "label": "Invertebrate Abundance",
-      "metric": "mean_abundance_per_transect",
-      "unit": "individuals per transect",
-      "description": "Mean abundance per transect for each focal taxon (most recent 5 years)",
-      "scale": "region",
-      "taxa": ["Echinoidea", "Asteroidea", "Holaxonia", "Scleractinia"]
+    {
+      "skill": "erddap-chlorophyll",
+      "source": "MODIS-Aqua monthly NPP (local .RDS copy)",
+      "display": "both",
+      "status": "available",
+      "kpi": {
+        "label": "CHL-A",
+        "panel_card_index": 6,
+        "metric": "kpi_mean_chla_mg_m3",
+        "unit": "mg/m³ · MODIS",
+        "format": "toFixed(3)",
+        "sub": "{kpi_years} · annual mean",
+        "null_display": "—",
+        "null_tag": "no data",
+        "scale": "MPA bounding box"
+      },
+      "plot": {
+        "type": "line",
+        "title": "Chlorophyll-a",
+        "section": "marine-environment",
+        "height_px": 130,
+        "series": [
+          {
+            "id": "mean_chla",
+            "label": "Chl-a (mg/m³)",
+            "source_field": "chl.annual.mean_chla",
+            "x_field": "chl.annual.year",
+            "type": "line",
+            "color": "#21925F",
+            "fill_color": "rgba(33,146,95,0.12)",
+            "fill": true,
+            "width_px": 1.8,
+            "tension": 0.3,
+            "point_radius": 2.5
+          }
+        ],
+        "y_axis_label": "mg/m³",
+        "y_min": 0,
+        "note": "Monthly composites averaged annually · mg m⁻³",
+        "scale": "MPA bounding box"
+      },
+      "data_path": "mpa_data.{mpa_name}.chl",
+      "notes": "Coverage: 2004–2023. Source column mean_npp used as Chl-a proxy (mg/m³). Available for all 12 demo MPAs."
     },
-    "plot": {
-      "type": "time_series_gam_facets",
-      "y_metric": "abundance_per_transect",
-      "y_label": "Abundance (individuals/transect)",
-      "x_label": "Year",
-      "series": "taxa",
-      "facets": ["Echinoidea", "Asteroidea", "Holaxonia", "Scleractinia"],
-      "description": "Annual observed means (points) with GAM smooth trend ± 95% CI per taxon, faceted (reef random effect excluded)",
-      "period": "1998–present",
-      "show_ci": true,
-      "overlay": "observed_annual_means",
-      "ci_lwr_floor": 0
+    {
+      "skill": "ltem-nrsi-index",
+      "source": "LTEM MCP",
+      "display": "both",
+      "status": "not_in_demo",
+      "kpi": {
+        "label": "REEF HEALTH (NRSI)",
+        "metric": "nrsi_mean",
+        "unit": "index (−1 to +1)",
+        "format": "toFixed(2)",
+        "sub": "NRSI · trophic health index",
+        "color_scale": { "negative": "#CC4C43", "zero": "#808E97", "positive": "#21925F" },
+        "scale": "MPA (LTEM region)"
+      },
+      "plot": {
+        "type": "line_with_scatter",
+        "title": "NRSI — Reef Trophic Health",
+        "y_axis_label": "NRSI",
+        "y_reference_line": 0,
+        "scale": "MPA (LTEM region)"
+      },
+      "data_path": "mpa_data.{mpa_name}.nrsi",
+      "notes": "Skill exists (ltem-nrsi-index). Not pre-computed in current demo_data.json."
     }
-  },
-  {
-    "skill": "conapesca-cpue",
-    "display": "both",
-    "data_source": "CONAPESCA (landing records)",
-    "kpi": {
-      "label": "Catch per Unit Effort",
-      "metric": "cpue_kg_per_day",
-      "unit": "kg / effective fishing day",
-      "description": "Mean CPUE for target species at the local scale (most recent 5 years)",
-      "scale": "local",
-      "note": "Separate values for MAYORES (industrial) and MENORES (artisanal) fleets"
-    },
-    "plot": {
-      "type": "time_series",
-      "y_metric": "cpue_kg_per_day",
-      "y_label": "CPUE (kg/fishing day)",
-      "x_label": "Year",
-      "series": "fleet",
-      "description": "Annual CPUE time series by fleet and species",
-      "period": "2001–present"
-    }
-  },
-  {
-    "skill": "conapesca-ppr",
-    "display": "both",
-    "data_source": "CONAPESCA (landing records)",
-    "kpi": {
-      "label": "Primary Production Required",
-      "metric": "ppr_kg_C_per_year",
-      "unit": "kg C / year",
-      "description": "Total PPR by the fishery at the local scale (most recent 5-year mean)",
-      "scale": "local"
-    },
-    "plot": {
-      "type": "time_series",
-      "y_metric": "ppr_kg_C_per_year",
-      "y_label": "PPR (kg C/year)",
-      "x_label": "Year",
-      "series": "species",
-      "description": "Annual Primary Production Required by species and fleet",
-      "period": "2001–present"
-    }
-  },
-  {
-    "skill": "ppr-ratio",
-    "display": "both",
-    "data_source": "CONAPESCA + ERDDAP (cross-database)",
-    "kpi": {
-      "label": "Fishery Ecological Footprint (%PPR)",
-      "metric": "ppr_ratio_pct",
-      "unit": "%",
-      "description": "Fraction of local ocean primary production consumed by the fishery",
-      "scale": "local",
-      "benchmarks": {
-        "light_pressure": "< 5%",
-        "heavy_exploitation": "> 25–35%"
-      }
-    },
-    "plot": {
-      "type": "time_series",
-      "y_metric": "ppr_ratio_pct",
-      "y_label": "%PPR",
-      "x_label": "Year",
-      "description": "Annual fraction of primary production consumed by fishery, by species",
-      "period": "2003–present",
-      "show_benchmark_lines": true
-    }
-  },
-  {
-    "skill": "reef-drivers-lm",
-    "display": "plot",
-    "data_source": "LTEM + CONAPESCA + ERDDAP (cross-database)",
-    "plot": {
-      "type": "regression_coefficients",
-      "description": "OLS regression coefficients showing association of fishing pressure (%PPR per species) and thermal anomaly (SST) with reef trophic health (NRSI)",
-      "y_metric": "coefficient",
-      "y_label": "Effect on NRSI (coefficient ± 95% CI)",
-      "note": "For display only when the full interdatabase analysis is run — not shown in the default KPI dashboard"
-    }
-  }
-]
+  ],
+  "panel_A_section_order": [
+    "header",
+    "kpi_grid",
+    "ltem-fish-biomass",
+    "marine-environment"
+  ],
+  "panel_A_kpi_cards": [
+    { "card": 1, "skill": "ltem-fish-biomass",           "metric": "mean_biomass_g_m2",          "unit": "T/ha",          "label": "FISH BIOMASS",  "grid_row": 1 },
+    { "card": 2, "skill": "ltem-invertebrate-abundance", "taxon": "Echinoidea",                   "metric": "mean_abundance_per_transect", "unit": "ind./transect", "label": "INVERTEBRATES", "grid_row": 1 },
+    { "card": 3, "skill": "ltem-nrsi-index",             "metric": "nrsi_mean",                   "unit": "index",         "label": "REEF HEALTH",   "grid_row": 1, "status": "coming_soon" },
+    { "card": 4, "skill": "erddap-sst-anomaly",          "metric": "kpi_mean_sst_c",              "unit": "°C",            "label": "SST",           "grid_row": 2, "coverage": "GoC only" },
+    { "card": 5, "skill": "erddap-chlorophyll",          "metric": "kpi_mean_chla_mg_m3",         "unit": "mg/m³",         "label": "CHL-A",         "grid_row": 2 }
+  ],
+  "panel_B_section_order": [
+    "header",
+    "species_selector",
+    "kpi_row",
+    "conapesca-cpue",
+    "economic-kpis"
+  ],
+  "panel_B_kpi_cards": [
+    { "card": 1, "skill": "conapesca-cpue", "fleet": "MENORES", "metric": "kpi_menores_mean_cpue", "unit": "kg/day", "label": "ART. CPUE" },
+    { "card": 2, "skill": "conapesca-cpue", "fleet": "MAYORES", "metric": "kpi_mayores_mean_cpue", "unit": "kg/day", "label": "IND. CPUE" }
+  ]
+}

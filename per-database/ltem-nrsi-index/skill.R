@@ -6,6 +6,11 @@
 # See SKILL.md for the full data contract, method, and do-not rules.
 # Resolves TODOs from SKILL.md: seed=42, UTL=LTL=CTL=0 edge case, reference JSON.
 
+if (!exists("before_after", mode = "function")) {
+  source(file.path(dirname(sys.frame(1)$ofile),
+                   "../../shared/interpretation/interpret.R"))
+}
+
 # ── Constants (fixed — do not change without updating SKILL.md) ──────────────
 
 .SEED   <- 42L   # fixed seed for bootstrap reproducibility
@@ -177,6 +182,59 @@ run_skill <- function(data, n_boot = .N_BOOT, ...) {
     }
   }
 
+  # ── Interpretation ────────────────────────────────────────────────────────
+
+  # Aggregate to regional annual mean NRSI for before/after comparison
+  nrsi_annual <- aggregate(nrsi ~ time, data = results, FUN = mean, na.rm = TRUE)
+  names(nrsi_annual)[names(nrsi_annual) == "time"] <- "year"
+
+  all_nrsi_yrs <- sort(unique(nrsi_annual$year))
+  ba_nrsi  <- before_after(nrsi_annual, "nrsi",
+                            before_years = head(all_nrsi_yrs, 5L), recent_n = 5L)
+  mkt_nrsi <- mk_trend(nrsi_annual, "nrsi")
+
+  nrsi_status <- if (!is.null(ba_nrsi$status)) "neutral" else {
+    p_val <- if (!is.null(mkt_nrsi$p)) mkt_nrsi$p else 1
+    if      (ba_nrsi$after_mean > 0   && ba_nrsi$direction == "increasing") "positive"
+    else if (ba_nrsi$after_mean < -0.15 ||
+             (ba_nrsi$delta < -0.1    && p_val < 0.10)) "negative"
+    else "neutral"
+  }
+
+  nrsi_sentences <- if (!is.null(ba_nrsi$status)) {
+    list(en = NA_character_, es = NA_character_)
+  } else {
+    eco_note_dir_en <- if (ba_nrsi$delta >= 0) "more predator-dominated" else
+                        "less predator-dominated"
+    eco_note_dir_es <- if (ba_nrsi$delta >= 0) "más dominada por depredadores" else
+                        "menos dominada por depredadores"
+    insight_sentence(
+      var_label_en  = "Reef trophic health index (NRSI)",
+      var_label_es  = "El índice trófico arrecifal (NRSI)",
+      unit          = "",
+      before_mean   = ba_nrsi$before_mean, after_mean = ba_nrsi$after_mean,
+      delta         = ba_nrsi$delta,       pct_change = ba_nrsi$pct_change,
+      before_period = ba_nrsi$before_period, after_period = ba_nrsi$after_period,
+      extra_en = paste0("The community structure became ", eco_note_dir_en, "."),
+      extra_es = paste0("La estructura de la comunidad se volvió ", eco_note_dir_es, "."),
+      digits = 3L
+    )
+  }
+
+  interpretation <- list(
+    before_period = ba_nrsi$before_period,
+    after_period  = ba_nrsi$after_period,
+    metric_before = ba_nrsi$before_mean,
+    metric_after  = ba_nrsi$after_mean,
+    delta         = ba_nrsi$delta,
+    pct_change    = ba_nrsi$pct_change,
+    direction     = if (!is.null(ba_nrsi$direction)) ba_nrsi$direction else "unknown",
+    status        = nrsi_status,
+    significance  = mkt_nrsi,
+    insight_es    = nrsi_sentences$es,
+    insight_en    = nrsi_sentences$en
+  )
+
   # ── Return ────────────────────────────────────────────────────────────────
 
   list(
@@ -184,6 +242,7 @@ run_skill <- function(data, n_boot = .N_BOOT, ...) {
       nrsi_by_reef    = results,
       kruskal_wallis  = kw_result
     ),
+    interpretation = interpretation,
     method = paste0(
       "NRSI per transect: standard (UTL+LTL-CTL)/(UTL+LTL+CTL), ",
       "conditional UTL/(UTL+CTL) when LTL > UTL+CTL. ",

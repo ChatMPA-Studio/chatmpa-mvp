@@ -1,5 +1,7 @@
 ---
 name: erddap-chlorophyll
+version: 0.1.0
+tier: 1
 description: >
   Assess primary productivity and phytoplankton trends at a marine protected
   area and its surrounding Large Marine Ecosystem, reporting annual chlorophyll-a
@@ -7,6 +9,30 @@ description: >
   about ocean productivity near an AMP, upwelling strength, food availability
   for fish communities, nutrient conditions, or how local chlorophyll compares
   to regional patterns.
+inputs: {}
+acquire:
+  # El orquestador llama al MCP de ERDDAP y manda los datos en el body.
+  # Dataset: erdMH1chla8day_R202SQ (MODIS Aqua 8-day, 4 km).
+  - source: payload
+    as: data
+    columns:
+      - lat
+      - lon
+      - time
+      - chlorophyll
+  - source: payload
+    as: geometry_local
+    type: sf
+  - source: payload
+    as: geometry_regional
+    type: sf
+# Sin `output.table`: run_skill() devuelve un solo data.frame con ambas escalas.
+# Skill determinista — media geométrica log10, sin bootstrap.
+comparable_value: [chl_geomean, anomalia_log10]
+reference: references/cabo_pulmo_chl_reference.json
+validation:
+  params: {}
+depends_on: []
 ---
 
 # ERDDAP Chlorophyll-a — Primary productivity context for MPAs

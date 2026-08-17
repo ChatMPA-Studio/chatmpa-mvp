@@ -1,5 +1,7 @@
 ---
 name: reef-drivers-lm
+version: 0.1.0
+tier: 1
 description: >
   Identify which environmental and fishing pressure factors are associated with
   reef trophic health at a marine protected area, by fitting a linear model of
@@ -8,6 +10,43 @@ description: >
   questions about what drives reef condition, whether fishing or temperature has
   a stronger association with reef health, or which factors explain year-to-year
   variation in reef trophic state.
+inputs:
+  species:
+    type: string_vector
+    required: true
+    description: >
+      One or more canonical scientific names (`nombre_cientifico_canonico`).
+      Each species produces two CPUE predictors (MENORES and MAYORES).
+      Keep to ≤ 3 species for short time series. Must be resolved before
+      calling conapesca-cpue (common names not accepted).
+acquire:
+  - source: skill_output
+    skill: ltem-nrsi-index
+    as: data_nrsi
+    columns: [time, reef, nrsi]
+  - source: skill_output
+    skill: conapesca-cpue
+    as: data_cpue
+    note: >
+      Named list — one element per species (name = canonical scientific name),
+      each a data.frame with columns anio_corte, tipo_aviso, cpue_media, escala.
+      The orchestrator filters each to escala="local" before passing.
+  - source: skill_output
+    skill: erddap-sst-anomaly
+    as: data_sst
+    columns: [year, anomalia_media]
+  - source: skill_output
+    skill: erddap-chlorophyll
+    as: data_chl
+    columns: [year, anomalia_log10]
+output.table: coefficients
+# OLS cerrado — determinista. Se comparan R² y coeficientes.
+comparable_value: [r_squared, r_squared_adj]
+reference: references/cabo_pulmo_lm_reference.json
+validation:
+  params:
+    species: [Lutjanus peru]
+depends_on: [ltem-nrsi-index, conapesca-cpue, erddap-sst-anomaly, erddap-chlorophyll]
 ---
 
 # Reef Drivers — Linear Model (first-order integration)

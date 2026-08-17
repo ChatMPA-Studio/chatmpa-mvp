@@ -12,6 +12,11 @@
 source(file.path(dirname(sys.frame(1)$ofile),
                  "../../shared/spatial_join/spatial_join.R"))
 
+if (!exists("before_after", mode = "function")) {
+  source(file.path(dirname(sys.frame(1)$ofile),
+                   "../../shared/interpretation/interpret.R"))
+}
+
 # ── Constants (fixed — do not change without updating SKILL.md) ──────────────
 
 .COVERAGE_THRESHOLD  <- 30          # % valid pixel-composites below which year = NA
@@ -126,6 +131,52 @@ run_skill <- function(data, geometry_local, geometry_regional, ...) {
   value <- do.call(rbind, results)
   rownames(value) <- NULL
 
+  # ── Interpretation ────────────────────────────────────────────────────────
+  # Uses local-scale annual geometric means; before = 2003-2013 (first MODIS decade).
+  # Status = ambiguous: Chl-a direction alone is not an ecological signal.
+
+  local_chl <- value[value$escala == "local" & !is.na(value$chl_geomean), ]
+
+  ba_chl  <- before_after(local_chl, "chl_geomean", year_col = "year",
+                           before_years = .BASELINE_START:.BASELINE_END, recent_n = 5L)
+  mkt_chl <- mk_trend(local_chl, "chl_geomean", year_col = "year")
+
+  chl_sentences <- if (!is.null(ba_chl$status)) {
+    list(en = NA_character_, es = NA_character_)
+  } else {
+    mk_note_en <- if (!is.null(mkt_chl$tau))
+      paste0("Mann-Kendall: τ = ", mkt_chl$tau, ", p = ", mkt_chl$p, ".") else NULL
+    mk_note_es <- mk_note_en
+    ambig_note_en <- "Note: Chl-a trends reflect both upwelling dynamics and land-based nutrient inputs — direction alone does not indicate ecosystem health."
+    ambig_note_es <- "Nota: La clorofila puede reflejar surgencia o aportes de nutrientes terrestres — la dirección por sí sola no indica salud del ecosistema."
+    extra_en <- paste(c(mk_note_en, ambig_note_en), collapse = " ")
+    extra_es <- paste(c(mk_note_es, ambig_note_es), collapse = " ")
+    insight_sentence(
+      var_label_en  = "Chlorophyll-a",
+      var_label_es  = "La clorofila-a",
+      unit          = "mg/m³",
+      before_mean   = ba_chl$before_mean, after_mean = ba_chl$after_mean,
+      delta         = ba_chl$delta,       pct_change = ba_chl$pct_change,
+      before_period = ba_chl$before_period, after_period = ba_chl$after_period,
+      extra_en      = extra_en,           extra_es   = extra_es,
+      digits        = 3L
+    )
+  }
+
+  interpretation <- list(
+    before_period = ba_chl$before_period,
+    after_period  = ba_chl$after_period,
+    metric_before = ba_chl$before_mean,
+    metric_after  = ba_chl$after_mean,
+    delta         = ba_chl$delta,
+    pct_change    = ba_chl$pct_change,
+    direction     = if (!is.null(ba_chl$direction)) ba_chl$direction else "unknown",
+    status        = "ambiguous",
+    significance  = mkt_chl,
+    insight_es    = chl_sentences$es,
+    insight_en    = chl_sentences$en
+  )
+
   # ── Return ─────────────────────────────────────────────────────────────────
 
   list(
@@ -137,6 +188,7 @@ run_skill <- function(data, geometry_local, geometry_regional, ...) {
       "Years with cobertura_pct < ", .COVERAGE_THRESHOLD, "% returned as NA. ",
       "Dataset: erdMH1chla8day_R202SQ, NOAA CoastWatch ERDDAP."
     ),
+    interpretation = interpretation,
     params = list(
       coverage_threshold_pct = .COVERAGE_THRESHOLD,
       baseline_period        = paste0(.BASELINE_START, "-", .BASELINE_END),

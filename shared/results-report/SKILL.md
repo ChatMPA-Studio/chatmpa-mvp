@@ -1,11 +1,37 @@
 ---
 name: results-report
+version: 0.1.0
+tier: 1
 description: >
   Summarise the numerical results of a fitted regression model and its
   diagnostics into a structured, objective statistical report. Fires when the
   user asks for the model results to be reported, written up, or summarised —
   or when the analysis pipeline is ready to move from computation to output.
   Does NOT interpret the ecology; it only describes what the model says.
+inputs:
+  sections:
+    type: string_vector
+    required: false
+    default: "[coefficients, fit_summary, data_summary, diagnostics_flags]"
+    description: >
+      Subset of report sections to produce. Default: all sections.
+acquire:
+  - source: skill_output
+    skill: reef-drivers-lm
+    as: model_output
+    fields: [coefficients, r_squared, r_squared_adj, f_statistic, f_p_value,
+             vif, fitted, n_years_used, years_excluded, formula_used]
+  - source: skill_output
+    skill: model-diagnostics
+    as: diagnostics_output
+    required: false
+output.table: coefficients
+# Extracción algebraica — determinista. Se comparan R², AIC y BIC.
+comparable_value: [r_squared, aic, bic]
+reference: references/cabo_pulmo_report_reference.json
+validation:
+  params: {}
+depends_on: [reef-drivers-lm, model-diagnostics]
 ---
 
 # Results Report — Structured statistical summary of a fitted model

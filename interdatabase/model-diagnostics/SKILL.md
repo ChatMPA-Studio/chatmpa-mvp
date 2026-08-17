@@ -1,10 +1,32 @@
 ---
 name: model-diagnostics
+version: 0.1.0
+tier: 1
 description: >
   Compute and summarise standard regression diagnostics for a fitted
   reef-drivers-lm model. Fires when the user asks whether the model assumptions
   hold, whether residuals are autocorrelated, or whether they need to interpret
   the validity of the regression before reporting results.
+inputs:
+  sections:
+    type: string_vector
+    required: false
+    default: "[normality, durbin_watson, acf_residuals, pacf_residuals, heteroscedasticity]"
+    description: >
+      Subset of diagnostic sections to compute. Default: all sections.
+acquire:
+  - source: skill_output
+    skill: reef-drivers-lm
+    as: lm_output
+    fields: [fitted, n_years_used, formula_used, species]
+output.table: acf_residuals
+# Determinista — derivado algebraicamente de residuales y valores ajustados.
+# Se comparan DW y autocorrelación de orden 1.
+comparable_value: [dw, r1]
+reference: references/cabo_pulmo_diag_reference.json
+validation:
+  params: {}
+depends_on: [reef-drivers-lm]
 ---
 
 # Model Diagnostics — OLS regression diagnostics for annual time series

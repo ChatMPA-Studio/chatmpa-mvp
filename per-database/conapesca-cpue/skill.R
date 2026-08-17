@@ -6,6 +6,11 @@
 #
 # See SKILL.md for the full data contract, method, and do-not rules.
 
+if (!exists("before_after", mode = "function")) {
+  source(file.path(dirname(sys.frame(1)$ofile),
+                   "../../shared/interpretation/interpret.R"))
+}
+
 # ── Constants (fixed — do not change without updating SKILL.md) ──────────────
 
 .MIN_TRIPS_WARN  <- 5L     # n_viajes below which year-fleet cell is flagged
@@ -128,10 +133,66 @@ run_skill <- function(data, species, state_filter, office_filter = NULL, ...) {
   value <- rbind(result_regional, result_local)
   rownames(value) <- NULL
 
+  # ── Interpretation ────────────────────────────────────────────────────────
+  # Per-fleet (MENORES / MAYORES) on regional scale. Status = ambiguous:
+  # declining CPUE may reflect overfishing, stock depletion, or reduced effort.
+
+  .cpue_interp <- function(fleet_label, fleet_label_es, aviso) {
+    fleet_df <- value[value$escala == "regional" & value$tipo_aviso == aviso, ]
+    fleet_df <- fleet_df[order(fleet_df$anio_corte), ]
+    # Rename so before_after uses standard "year" column
+    fleet_df$year <- fleet_df$anio_corte
+    if (nrow(fleet_df) < 2) return(list(status = "insufficient_data"))
+
+    all_yrs <- sort(unique(fleet_df$year))
+    ba  <- before_after(fleet_df, "cpue_media",
+                        before_years = head(all_yrs, 5L), recent_n = 5L)
+    mkt <- mk_trend(fleet_df, "cpue_media")
+
+    sentences <- if (!is.null(ba$status)) {
+      list(en = NA_character_, es = NA_character_)
+    } else {
+      caution_en <- "Note: CPUE trends reflect both effort and stock — interpret with caution."
+      caution_es <- "Nota: La CPUE refleja esfuerzo y abundancia — interprete con precaución."
+      insight_sentence(
+        var_label_en  = fleet_label,
+        var_label_es  = fleet_label_es,
+        unit          = "kg/day",
+        before_mean   = ba$before_mean, after_mean = ba$after_mean,
+        delta         = ba$delta,       pct_change = ba$pct_change,
+        before_period = ba$before_period, after_period = ba$after_period,
+        extra_en      = caution_en,     extra_es   = caution_es,
+        digits        = 1L
+      )
+    }
+
+    list(
+      before_period = ba$before_period,
+      after_period  = ba$after_period,
+      metric_before = ba$before_mean,
+      metric_after  = ba$after_mean,
+      delta         = ba$delta,
+      pct_change    = ba$pct_change,
+      direction     = if (!is.null(ba$direction)) ba$direction else "unknown",
+      status        = "ambiguous",
+      significance  = mkt,
+      insight_es    = sentences$es,
+      insight_en    = sentences$en
+    )
+  }
+
+  interpretation <- list(
+    menores = .cpue_interp("Artisanal (MENORES) CPUE",
+                           "La CPUE artesanal (MENORES)", "MENORES"),
+    mayores = .cpue_interp("Industrial (MAYORES) CPUE",
+                           "La CPUE industrial (MAYORES)", "MAYORES")
+  )
+
   # ── Return ────────────────────────────────────────────────────────────────
 
   list(
     value  = value,
+    interpretation = interpretation,
     method = paste0(
       "Mean-of-ratios CPUE: mean(sum_kg_folio / dias_efectivos_folio) ",
       "per anio_corte × tipo_aviso × escala. ",

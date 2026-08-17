@@ -1,5 +1,7 @@
 ---
 name: conapesca-lfo-ca
+version: 0.1.0
+tier: 2
 description: >
   Assess whether commercial fisheries offices in Mexico show distinct spatial
   structure based on the composition and volume of their landings. Fires when
@@ -7,6 +9,64 @@ description: >
   whether there is a spatial gradient in catch composition across offices, or
   as a prerequisite to regionalizing fishing pressure for downstream analyses.
   Must be run before conapesca-lfo-regions.
+inputs:
+  tax_resolution:
+    type: string
+    required: false
+    enum: [nombre_especie, genus, family, nombre_cientifico]
+    default: nombre_especie
+    description: >
+      Taxonomic grouping column for the landing matrix. "nombre_especie"
+      (CONAPESCA resource group) is closest to Erisman et al. (2011) species groups.
+  year_min:
+    type: integer
+    required: false
+    default: 2001
+    description: >
+      First year of the analysis period. PENDING — verify with Edu/Fabio that
+      data coverage is adequate from this year across all LFOs.
+  year_max:
+    type: integer
+    required: false
+    default: 2010
+    description: >
+      Last year of the analysis period. PENDING — verify with Edu/Fabio whether
+      2010 is conservative enough to avoid depletion or climate-shift effects.
+  lfo_coords:
+    type: dataframe
+    required: false
+    description: >
+      Optional. Columns: nombre_oficina_canonico (chr), lat (num), lon (num).
+      If provided, enables spatial correlation of CA axis 2 with lat/lon.
+  k_range:
+    type: integer_vector
+    required: false
+    default: "3:12"
+    description: >
+      Range of k values for WK and KL index computation. At least 2 values required.
+acquire:
+  # El orquestador hace múltiples calls al MCP CONAPESCA (uno por año o estado)
+  # porque get_landings topa en 2000 filas con group_by=NULL, los concatena,
+  # y manda la tabla en el body.
+  - source: payload
+    as: data
+    columns:
+      - anio_corte
+      - tipo_aviso
+      - nombre_oficina_canonico
+      - nombre_especie
+      - peso_desembarcado_kg
+output.table: kl_table
+# CA es determinista; k-means con seed=42. Se compara el k óptimo (KL) y el
+# MLG (gradiente máximo, determina si CA es el método correcto).
+comparable_value: [k_optimal_kl, mlg]
+reference: references/nwmexico_ca_reference.json
+validation:
+  params:
+    tax_resolution: nombre_especie
+    year_min: 2001
+    year_max: 2010
+depends_on: []
 ---
 
 # CONAPESCA LFO — Correspondence Analysis
