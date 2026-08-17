@@ -23,27 +23,32 @@
 .VALID_AVISOS        <- c("MAYORES", "MENORES")
 .VALID_TAX_RES       <- c("nombre_especie", "genus", "family", "nombre_cientifico")
 .CA_AXES             <- 2L     # number of CA axes used in WK/KL computation
+.VALID_LITORALES     <- c("PACIFICO", "GOLFO")
 
 # ── run_skill ─────────────────────────────────────────────────────────────────
 #
 # Args:
 #   data            data.frame — landing records from CONAPESCA MCP.
-#                   Required cols: anio_corte, tipo_aviso,
-#                   nombre_oficina_canonico, nombre_especie, peso_desembarcado_kg.
+#                   Required cols: anio_corte, tipo_aviso, litoral,
+#                   nombre_oficina, nombre_especie, peso_desembarcado_kg.
 #                   Additional cols required depending on tax_resolution:
 #                     "genus"            → genus
 #                     "family"           → family
 #                     "nombre_cientifico"→ nombre_cientifico
+#   litoral         character — coast to analyze: "PACIFICO" or "GOLFO". Required,
+#                   no default. Pacific and Gulf offices must never be mixed in the
+#                   same CA — their catch compositions are ecologically incomparable.
 #   tax_resolution  character — one of .VALID_TAX_RES (default: "nombre_especie")
 #   year_min        integer — first year of analysis period (default: 2001, PENDING)
 #   year_max        integer — last year of analysis period (default: 2010, PENDING)
-#   lfo_coords      data.frame or NULL — columns: nombre_oficina_canonico, lat, lon.
+#   lfo_coords      data.frame or NULL — columns: nombre_oficina, latitud_oficina, longitud_oficina.
 #                   If provided, enables spatial correlation step.
 #   k_range         integer vector — range of k for WK/KL indices (default: 3:12)
 #
 # Returns: list(value, method, params)
 
 run_skill <- function(data,
+                      litoral,
                       tax_resolution = "nombre_especie",
                       year_min       = .DEFAULT_YEAR_MIN,
                       year_max       = .DEFAULT_YEAR_MAX,
@@ -56,11 +61,15 @@ run_skill <- function(data,
   if (!requireNamespace("vegan", quietly = TRUE))
     stop("Package 'vegan' is required. Install with: install.packages('vegan')")
 
+  if (missing(litoral) || !litoral %in% .VALID_LITORALES)
+    stop("'litoral' is required and must be one of: ",
+         paste(.VALID_LITORALES, collapse = ", "))
+
   if (!tax_resolution %in% .VALID_TAX_RES)
     stop("'tax_resolution' must be one of: ",
          paste(.VALID_TAX_RES, collapse = ", "))
 
-  required_base <- c("anio_corte", "tipo_aviso", "nombre_oficina_canonico",
+  required_base <- c("anio_corte", "tipo_aviso", "litoral", "nombre_oficina",
                      "nombre_especie", "peso_desembarcado_kg")
   required_extra <- switch(tax_resolution,
     "genus"             = "genus",
@@ -74,7 +83,7 @@ run_skill <- function(data,
     stop("Missing columns in data: ", paste(missing_cols, collapse = ", "))
 
   if (!is.null(lfo_coords)) {
-    lfo_coord_cols <- c("nombre_oficina_canonico", "lat", "lon")
+    lfo_coord_cols <- c("nombre_oficina", "latitud_oficina", "longitud_oficina")
     missing_coord  <- setdiff(lfo_coord_cols, names(lfo_coords))
     if (length(missing_coord) > 0)
       stop("lfo_coords missing columns: ", paste(missing_coord, collapse = ", "))
@@ -85,12 +94,13 @@ run_skill <- function(data,
 
   # ── Step 1: Filter ────────────────────────────────────────────────────────
 
-  d <- data[data$anio_corte >= year_min & data$anio_corte <= year_max, ]
+  d <- data[data$litoral == litoral, ]
+  d <- d[d$anio_corte >= year_min & d$anio_corte <= year_max, ]
   d <- d[d$tipo_aviso %in% .VALID_AVISOS, ]
 
   if (nrow(d) == 0)
-    stop("No records remain after filtering for years [", year_min, ", ",
-         year_max, "] and fleet types MAYORES/MENORES.")
+    stop("No records remain after filtering for litoral='", litoral,
+         "', years [", year_min, ", ", year_max, "] and fleet types MAYORES/MENORES.")
 
   # ── Step 2: Resolve taxonomic column ─────────────────────────────────────
 
@@ -111,17 +121,17 @@ run_skill <- function(data,
 
   # Annual totals per LFO × tax_group × year
   annual <- aggregate(
-    peso_desembarcado_kg ~ nombre_oficina_canonico + tax_group + anio_corte,
+    peso_desembarcado_kg ~ nombre_oficina + tax_group + anio_corte,
     data = d, FUN = sum, na.rm = TRUE
   )
 
   # Mean across years (each year weighted equally — PENDING: verify with Edu/Fabio)
   mean_annual <- aggregate(
-    peso_desembarcado_kg ~ nombre_oficina_canonico + tax_group,
+    peso_desembarcado_kg ~ nombre_oficina + tax_group,
     data = annual, FUN = mean, na.rm = TRUE
   )
 
-  lfo_names <- sort(unique(mean_annual$nombre_oficina_canonico))
+  lfo_names <- sort(unique(mean_annual$nombre_oficina))
   tax_names <- sort(unique(mean_annual$tax_group))
 
   if (length(lfo_names) < .MIN_LFO)
@@ -134,7 +144,7 @@ run_skill <- function(data,
     dimnames = list(lfo_names, tax_names)
   )
   for (i in seq_len(nrow(mean_annual))) {
-    lfo <- mean_annual$nombre_oficina_canonico[i]
+    lfo <- mean_annual$nombre_oficina[i]
     tax <- mean_annual$tax_group[i]
     mat[lfo, tax] <- mean_annual$peso_desembarcado_kg[i]
   }
@@ -177,15 +187,15 @@ run_skill <- function(data,
 
   if (!is.null(lfo_coords)) {
     scores_df <- as.data.frame(scores_lfo)
-    scores_df$nombre_oficina_canonico <- rownames(scores_df)
-    joined <- merge(scores_df, lfo_coords, by = "nombre_oficina_canonico")
+    scores_df$nombre_oficina <- rownames(scores_df)
+    joined <- merge(scores_df, lfo_coords, by = "nombre_oficina")
 
     if (nrow(joined) < 3) {
       warning("Fewer than 3 LFOs matched lfo_coords — spatial correlation skipped.")
     } else {
       ca2_col <- paste0("CA", .CA_AXES)  # axis 2 as in Erisman
-      ct_lat  <- cor.test(joined[[ca2_col]], joined$lat, method = "pearson")
-      ct_lon  <- cor.test(joined[[ca2_col]], joined$lon, method = "pearson")
+      ct_lat  <- cor.test(joined[[ca2_col]], joined$latitud_oficina,  method = "pearson")
+      ct_lon  <- cor.test(joined[[ca2_col]], joined$longitud_oficina, method = "pearson")
 
       spatial_corr <- list(
         axis2_vs_lat = list(

@@ -94,7 +94,8 @@ Data frame of individual or folio-level landing records from the CONAPESCA MCP
 |--------|------|-------------|
 | `anio_corte` | integer | Landing year |
 | `tipo_aviso` | character | Fleet type: `MAYORES` or `MENORES` |
-| `nombre_oficina_canonico` | character | Canonical landing office name |
+| `litoral` | character | Coast: `PACIFICO` or `GOLFO` |
+| `nombre_oficina` | character | Landing office name |
 | `nombre_especie` | character | CONAPESCA resource group name (always required) |
 | `genus` | character | Genus (required only if `tax_resolution = "genus"`) |
 | `family` | character | Family (required only if `tax_resolution = "family"`) |
@@ -111,15 +112,16 @@ multi-office pull the orchestrator must make multiple calls (e.g. one per year
 or one per state) and concatenate results before passing to this skill.
 
 ### Optional: `lfo_coords`
-Data frame with columns `nombre_oficina_canonico` (chr), `lat` (num),
-`lon` (num). If provided, enables the spatial correlation step (CA axis 2
-scores vs. latitude and longitude). If `NULL`, that step is skipped and
-reported as PENDING.
+Data frame with columns `nombre_oficina` (chr), `latitud_oficina` (num),
+`longitud_oficina` (num). If provided, enables the spatial correlation step
+(CA axis 2 scores vs. latitude and longitude). If `NULL`, that step is
+skipped and reported as PENDING.
 
 ## Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
+| `litoral` | character | — **required** | Coast to analyze: `"PACIFICO"` or `"GOLFO"`. No default — must be specified explicitly. Pacific and Gulf offices must never be mixed in the same CA: their catch compositions are ecologically incomparable and would produce a spurious first axis driven by coast, not fishery structure. Run the skill separately for each litoral. |
 | `tax_resolution` | character | `"nombre_especie"` | Taxonomic grouping column. Options: `"nombre_especie"` (CONAPESCA resource group — closest to Erisman's species groups), `"genus"`, `"family"`, `"nombre_cientifico"` (species-level binomial). |
 | `year_min` | integer | `2001` | First year of the analysis period. **PENDING** — verify with Edu/Fabio. |
 | `year_max` | integer | `2010` | Last year of the analysis period. **PENDING** — verify with Edu/Fabio whether 2010 is sufficiently conservative to avoid strong depletion or climate-shift effects. |
@@ -135,9 +137,9 @@ reported as PENDING.
 ## Method (fixed, no degrees of freedom)
 
 ### Step 1 — Filter and aggregate
-- Keep records where `anio_corte` ∈ [`year_min`, `year_max`] and
-  `tipo_aviso` ∈ {`MAYORES`, `MENORES`}.
-- Sum `peso_desembarcado_kg` by (`nombre_oficina_canonico`, `tax_group`,
+- Keep records where `litoral == litoral` parameter, `anio_corte` ∈
+  [`year_min`, `year_max`], and `tipo_aviso` ∈ {`MAYORES`, `MENORES`}.
+- Sum `peso_desembarcado_kg` by (`nombre_oficina`, `tax_group`,
   `anio_corte`) → annual totals per LFO × resource group.
 - Take `mean()` across years → **mean annual kg** per LFO × resource group.
 - Pivot wide: rows = LFOs, columns = resource groups, values = mean annual kg.
@@ -158,8 +160,8 @@ Extracts: site scores (LFOs), species scores (resource groups), eigenvalues,
 percent variance explained per axis.
 
 ### Step 4 — Spatial correlation (if `lfo_coords` provided)
-Pearson rank correlation of CA axis 2 scores with `lat` and `lon` of each
-LFO, following Erisman et al. (2011).
+Pearson rank correlation of CA axis 2 scores with `latitud_oficina` and
+`longitud_oficina` of each LFO, following Erisman et al. (2011).
 Reports: r, p-value, 95% CI for each correlation.
 
 ### Step 5 — WK and KL indices
@@ -198,6 +200,10 @@ estimation only). The CA itself is deterministic.
 
 ## Do-not rules
 
+- Do NOT mix offices from different litorales (PACIFICO + GOLFO) in the same
+  CA run — their catch compositions are ecologically incomparable and the
+  inter-coast contrast would dominate axis 1, masking real fishery structure.
+  Run the skill separately for each litoral.
 - Do NOT transform the matrix before CA (use raw kg as Erisman did — DCA
   confirmed this is appropriate when MLG > 3).
 - Do NOT sum `dias_efectivos` or compute CPUE — this skill uses landed weight
@@ -228,6 +234,6 @@ A complete CA run includes:
 - `mlg`: DCA maximum gradient length; `method_chosen` = "CA" or "RDA".
 - `kl_table`: data.frame with k, WK, KL for all k in k_range;
   `k_optimal_kl` = argmax KL.
-- `spatial_correlation`: list with r, p-value for CA2 vs lat and lon,
-  or `NULL` if `lfo_coords` not provided (disclosed in output).
+- `spatial_correlation`: list with r, p-value for CA2 vs `latitud_oficina`
+  and `longitud_oficina`, or `NULL` if `lfo_coords` not provided (disclosed in output).
 - `pending_params` declared in `params`.

@@ -85,13 +85,13 @@ run_skill <- function(ca_output, k, ...) {
   # ── Build lookup table ────────────────────────────────────────────────────
 
   lookup <- data.frame(
-    nombre_oficina_canonico = lfo_names,
+    nombre_oficina = lfo_names,
     region_id               = region_id,
     region_num              = region_num,
     stringsAsFactors = FALSE,
     row.names = NULL
   )
-  lookup <- lookup[order(lookup$region_num, lookup$nombre_oficina_canonico), ]
+  lookup <- lookup[order(lookup$region_num, lookup$nombre_oficina), ]
 
   # ── Step 3: MDS verification ──────────────────────────────────────────────
 
@@ -99,7 +99,7 @@ run_skill <- function(ca_output, k, ...) {
   mds      <- cmdscale(dist_mat, k = 2L)
 
   mds_df <- data.frame(
-    nombre_oficina_canonico = lfo_names,
+    nombre_oficina = lfo_names,
     MDS1      = round(mds[, 1], 4),
     MDS2      = round(mds[, 2], 4),
     region_id = region_id,
@@ -114,7 +114,7 @@ run_skill <- function(ca_output, k, ...) {
 
   summary_rows <- lapply(seq_len(k), function(rn) {
     sub      <- lookup[lookup$region_num == rn, ]
-    sub_lfo  <- sub$nombre_oficina_canonico
+    sub_lfo  <- sub$nombre_oficina
     ca2_vals <- scores_df$CA2[match(sub_lfo, lfo_names)]
     ca1_vals <- scores_df$CA1[match(sub_lfo, lfo_names)]
 
