@@ -344,21 +344,27 @@ When a species/group is selected and species-level data is available, this chart
 
 ---
 
-### 4.5 Economic Indicators section *(coming soon)*
+### 4.5 Economic Indicators section
 
-**Status:** Placeholder — Carolina's skills are in development.
+**Status (2026-08-18):** Skills complete — awaiting full CONAPESCA data pipeline to production.  
+Carolina pushed `conapesca-landings-timeseries`, `conapesca-catch-composition`, `conapesca-national-ranking`, and `conapesca-tmca` to the skills repo. The Panel B implementation in the demo now shows the section structure; values are populated by the CONAPESCA MCP in production.
 
-**When available, this section will include:**
+**Panel B now shows these sections (with skill attribution):**
 
-| KPI | Description | Unit |
-|-----|-------------|------|
-| Economic value of catch | Total landed value by fleet | MXN / USD million/yr |
-| Revenue per fisher | Average income per registered fisher | MXN/yr |
-| Employment (artisanal) | Registered fishers in the region | persons |
-| Dependency index | % of municipal income from fishing | % |
+| Section | Skill | Output |
+|---------|-------|--------|
+| Landing Trends | `conapesca-landings-timeseries` + `conapesca-tmca` | Annual volume/value + TMCA % + trend category |
+| National Position | `conapesca-national-ranking` | Rank out of ~127 offices, % of national total |
+| Production Composition | `conapesca-catch-composition` | Capture vs aquaculture % by volume and value |
+| CPUE Trend | `conapesca-cpue` | Art./Ind. CPUE time series (already in demo) |
 
-**Spec will be finalized once the skills are complete.**  
-Placeholder text to show in the panel for now: `"Economic indicators coming soon — skills in development."`
+**Still deferred:**
+
+| KPI | Dependency |
+|-----|-----------|
+| Revenue per fisher | Requires fisher registry (RNP) — data governance decision pending |
+| Employment (artisanal) | Same as above |
+| Dependency index | Requires municipal income data — external source TBD |
 
 ---
 
