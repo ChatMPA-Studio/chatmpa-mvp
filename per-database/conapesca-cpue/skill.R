@@ -1,8 +1,13 @@
 # skill.R — conapesca-cpue
 #
 # Computes CPUE (kg / effective fishing day) as mean-of-ratios per folio,
-# at regional (state) and local (office) scales, for MAYORES and MENORES
-# separately. Fishing pressure proxy from CONAPESCA landing records.
+# disaggregated by fleet type (MAYORES / MENORES).
+#
+# Two modes:
+#   Panel mode   (office_filter specified): one office, generates plot.
+#   Utility mode (office_filter = NULL):    all offices, no plot.
+#                Used internally by conapesca-landings-timeseries and
+#                conapesca-national-ranking (when CPUE ranking is implemented).
 #
 # See SKILL.md for the full data contract, method, and do-not rules.
 
@@ -13,124 +18,151 @@ if (!exists("before_after", mode = "function")) {
 
 # ── Constants (fixed — do not change without updating SKILL.md) ──────────────
 
-.MIN_TRIPS_WARN  <- 5L     # n_viajes below which year-fleet cell is flagged
-.VALID_AVISOS    <- c("MAYORES", "MENORES")  # COSECHA excluded
+.MIN_TRIPS_WARN <- 5L
+.VALID_AVISOS   <- c("MAYORES", "MENORES")  # COSECHA always excluded
+
+# Tableau 10 palette — consistent across all conapesca skills
+.FLEET_COLORS <- c(MAYORES = "#4E79A7", MENORES = "#F28E2B")
+.FLEET_SHAPES <- c(MAYORES = 17L, MENORES = 16L)  # filled triangle, filled circle
 
 # ── run_skill ─────────────────────────────────────────────────────────────────
 #
 # Args:
-#   data          data.frame — minimal contract from CONAPESCA MCP (group_by="folio"):
-#                 required cols: folio_aviso, anio_corte, tipo_aviso,
-#                 nombre_estado, nombre_oficina, nombre_cientifico_canonico,
-#                 peso_desembarcado_kg, dias_efectivos, dias_efectivos_fuente,
-#                 flag_fecha_generica, flag_dias_efectivos_sospechoso, flag_periodo_futuro
-#   species       character — canonical scientific name (nombre_cientifico_canonico)
-#   state_filter  character — state name (nombre_estado)
-#   office_filter character or NULL — landing office (nombre_oficina); NULL = regional only
+#   data                       data.frame — from get_landings(group_by="folio").
+#                              Required cols: folio_aviso, anio_corte, tipo_aviso,
+#                              nombre_estado, nombre_oficina, nombre_principal,
+#                              nombre_cientifico_canonico, peso_desembarcado_kg,
+#                              dias_efectivos, dias_efectivos_fuente,
+#                              flag_fecha_generica, flag_dias_efectivos_sospechoso,
+#                              flag_periodo_futuro
+#   office_filter              character or NULL.
+#                              Panel mode  (specified): filter to one office; plot generated.
+#                              Utility mode (NULL):     all offices; no plot; output
+#                              includes nombre_oficina and nombre_estado columns.
+#   state_filter               character or NULL. Recommended when office_filter is
+#                              specified (office names not unique across states).
+#                              When office_filter = NULL, use to restrict universe
+#                              (e.g. by litoral/region when implemented).
+#   nombre_principal           character or NULL — resource group filter. NULL = all.
+#   nombre_cientifico_canonico character or NULL — species filter. NULL = all.
+#                              Mutually exclusive with nombre_principal.
+#   year_range                 integer vector c(start, end) or NULL — NULL = all years.
 #
-# Returns: list(value, method, params)
+# Returns (panel mode):   list(value, plot, method, params)
+# Returns (utility mode): list(value, plot = NULL, method, params)
+#   value columns (utility mode) add: nombre_oficina, nombre_estado
 
-run_skill <- function(data, species, state_filter, office_filter = NULL, ...) {
+run_skill <- function(data,
+                      office_filter              = NULL,
+                      state_filter               = NULL,
+                      nombre_principal           = NULL,
+                      nombre_cientifico_canonico = NULL,
+                      year_range                 = NULL,
+                      ...) {
 
   # ── Input validation ───────────────────────────────────────────────────────
 
   required_cols <- c("folio_aviso", "anio_corte", "tipo_aviso",
                      "nombre_estado", "nombre_oficina",
-                     "nombre_cientifico_canonico", "peso_desembarcado_kg",
-                     "dias_efectivos", "dias_efectivos_fuente",
-                     "flag_fecha_generica", "flag_dias_efectivos_sospechoso",
-                     "flag_periodo_futuro")
+                     "nombre_principal", "nombre_cientifico_canonico",
+                     "peso_desembarcado_kg", "dias_efectivos",
+                     "dias_efectivos_fuente", "flag_fecha_generica",
+                     "flag_dias_efectivos_sospechoso", "flag_periodo_futuro")
   missing_cols <- setdiff(required_cols, names(data))
   if (length(missing_cols) > 0)
     stop("Missing columns in data: ", paste(missing_cols, collapse = ", "))
 
-  if (missing(species)      || !nzchar(species))
-    stop("'species' is required — provide nombre_cientifico_canonico.")
-  if (missing(state_filter) || !nzchar(state_filter))
-    stop("'state_filter' is required — provide nombre_estado.")
-  if (!is.null(office_filter) && !nzchar(office_filter))
-    stop("'office_filter' must be NULL or a non-empty string.")
+  panel_mode <- !is.null(office_filter) && nzchar(office_filter)
+
+  if (panel_mode && (is.null(state_filter) || !nzchar(state_filter)))
+    warning("'state_filter' is recommended with 'office_filter' — ",
+            "office names are not unique across states.")
+  if (!is.null(nombre_principal) && !is.null(nombre_cientifico_canonico))
+    stop("'nombre_principal' and 'nombre_cientifico_canonico' are mutually exclusive.")
+  if (!is.null(year_range) &&
+      (length(year_range) != 2 || !is.numeric(year_range) || year_range[1] > year_range[2]))
+    stop("'year_range' must be a two-element numeric vector c(start, end).")
 
   # ── Step 1: Filter ─────────────────────────────────────────────────────────
 
-  # Count total folios for target species in state (before quality filters)
-  folios_species_state <- data[
-    data$nombre_estado              == state_filter &
-    data$tipo_aviso                 %in% .VALID_AVISOS &
-    data$nombre_cientifico_canonico == species &
-    data$peso_desembarcado_kg       >  0, ]
+  base_mask <- data$tipo_aviso %in% .VALID_AVISOS & data$peso_desembarcado_kg > 0
 
-  n_folios_total <- nrow(folios_species_state)
+  if (panel_mode)
+    base_mask <- base_mask & (data$nombre_oficina == office_filter)
+  if (!is.null(state_filter) && nzchar(state_filter))
+    base_mask <- base_mask & (data$nombre_estado == state_filter)
+  if (!is.null(nombre_principal))
+    base_mask <- base_mask & (data$nombre_principal == nombre_principal)
+  if (!is.null(nombre_cientifico_canonico))
+    base_mask <- base_mask & (data$nombre_cientifico_canonico == nombre_cientifico_canonico)
+  if (!is.null(year_range))
+    base_mask <- base_mask &
+                 data$anio_corte >= year_range[1] &
+                 data$anio_corte <= year_range[2]
 
-  # Apply quality filters
-  data_clean <- folios_species_state[
-    !folios_species_state$flag_fecha_generica            &
-    !folios_species_state$flag_dias_efectivos_sospechoso &
-    !is.na(folios_species_state$dias_efectivos), ]
+  folios_base    <- data[base_mask, ]
+  n_folios_total <- nrow(folios_base)
+
+  if (n_folios_total == 0)
+    stop("No records found.",
+         if (panel_mode)                            paste0(" office='", office_filter, "'"),
+         if (!is.null(state_filter))                paste0(" state='", state_filter, "'"),
+         if (!is.null(nombre_principal))            paste0(" nombre_principal='", nombre_principal, "'"),
+         if (!is.null(nombre_cientifico_canonico))  paste0(" nombre_cientifico_canonico='", nombre_cientifico_canonico, "'"))
+
+  # Quality filters (applied after counting total for n_viajes_excluidos)
+  data_clean <- folios_base[
+    !folios_base$flag_fecha_generica            &
+    !folios_base$flag_dias_efectivos_sospechoso &
+    !is.na(folios_base$dias_efectivos), ]
 
   n_excluidos <- n_folios_total - nrow(data_clean)
 
   if (nrow(data_clean) == 0)
-    stop("No valid records after quality filters for species='", species,
-         "' in state='", state_filter, "'.")
+    stop("No valid records after quality filters.")
 
   # ── Step 2: CPUE per folio ─────────────────────────────────────────────────
   # dias_efectivos is already folio-level — do NOT sum across rows
 
   data_clean$cpue_folio <- data_clean$peso_desembarcado_kg / data_clean$dias_efectivos
 
-  # ── Step 3 & 4: Aggregate by year × fleet × scale ─────────────────────────
+  # ── Step 3: Aggregate ─────────────────────────────────────────────────────
+  # Panel mode:   group by anio_corte × tipo_aviso
+  # Utility mode: group by nombre_oficina × nombre_estado × anio_corte × tipo_aviso
 
-  .aggregate_cpue <- function(df, escala_label, n_excl) {
-    years_fleets <- unique(df[, c("anio_corte", "tipo_aviso")])
-
-    do.call(rbind, lapply(seq_len(nrow(years_fleets)), function(i) {
-      yr    <- years_fleets$anio_corte[i]
-      aviso <- years_fleets$tipo_aviso[i]
-
-      sub <- df[df$anio_corte == yr & df$tipo_aviso == aviso, ]
-
-      n_viajes  <- nrow(sub)
-      n_recomp  <- sum(sub$dias_efectivos_fuente == "recomputado", na.rm = TRUE)
-
-      if (n_viajes < .MIN_TRIPS_WARN)
-        warning("escala=", escala_label, " | ", yr, " | ", aviso,
-                ": n_viajes=", n_viajes, " < ", .MIN_TRIPS_WARN,
-                " — CPUE mean unreliable with few trips.")
-
-      data.frame(
-        anio_corte                  = yr,
-        tipo_aviso                  = aviso,
-        escala                      = escala_label,
-        nombre_cientifico_canonico  = species,
-        cpue_media                  = round(mean(sub$cpue_folio), 4),
-        cpue_sd                     = round(sd(sub$cpue_folio), 4),
-        n_viajes                    = n_viajes,
-        n_viajes_excluidos          = n_excl,
-        peso_desembarcado_kg_total  = sum(sub$peso_desembarcado_kg),
-        n_viajes_recomputado        = n_recomp
-      )
-    }))
+  group_cols <- if (panel_mode) {
+    c("anio_corte", "tipo_aviso")
+  } else {
+    c("nombre_oficina", "nombre_estado", "anio_corte", "tipo_aviso")
   }
 
-  # Regional series (full state)
-  result_regional <- .aggregate_cpue(data_clean, "regional", n_excluidos)
+  combos <- unique(data_clean[, group_cols, drop = FALSE])
+  combos <- combos[do.call(order, combos), ]
 
-  # Local series (by office, if requested)
-  result_local <- NULL
-  if (!is.null(office_filter)) {
-    data_local <- data_clean[data_clean$nombre_oficina == office_filter, ]
-    if (nrow(data_local) == 0)
-      warning("No records for office_filter='", office_filter,
-              "' — local series not produced.")
-    else {
-      n_excl_local <- sum(
-        folios_species_state$nombre_oficina == office_filter) - nrow(data_local)
-      result_local <- .aggregate_cpue(data_local, "local", n_excl_local)
-    }
-  }
+  value <- do.call(rbind, lapply(seq_len(nrow(combos)), function(i) {
+    mask <- rep(TRUE, nrow(data_clean))
+    for (col in group_cols)
+      mask <- mask & (data_clean[[col]] == combos[[col]][i])
 
-  value <- rbind(result_regional, result_local)
+    sub      <- data_clean[mask, ]
+    n_viajes <- nrow(sub)
+    n_recomp <- sum(sub$dias_efectivos_fuente == "recomputado", na.rm = TRUE)
+
+    if (n_viajes < .MIN_TRIPS_WARN)
+      warning(paste(combos[i, ], collapse = " | "),
+              ": n_viajes=", n_viajes, " < ", .MIN_TRIPS_WARN,
+              " — CPUE mean unreliable.")
+
+    row <- as.data.frame(combos[i, , drop = FALSE], stringsAsFactors = FALSE)
+    row$cpue_media                 <- round(mean(sub$cpue_folio), 4)
+    row$cpue_sd                    <- round(sd(sub$cpue_folio), 4)
+    row$n_viajes                   <- n_viajes
+    row$n_viajes_excluidos         <- n_excluidos
+    row$peso_desembarcado_kg_total <- sum(sub$peso_desembarcado_kg)
+    row$n_viajes_recomputado       <- n_recomp
+    row
+  }))
+
   rownames(value) <- NULL
 
   # ── Interpretation ────────────────────────────────────────────────────────
@@ -188,24 +220,117 @@ run_skill <- function(data, species, state_filter, office_filter = NULL, ...) {
                            "La CPUE industrial (MAYORES)", "MAYORES")
   )
 
-  # ── Return ────────────────────────────────────────────────────────────────
+  # ── Step 4: Plot (panel mode only) ────────────────────────────────────────
+
+  plot <- if (panel_mode) {
+    .build_cpue_plot(value, office_filter, nombre_principal, nombre_cientifico_canonico)
+  } else {
+    NULL
+  }
+
+  # ── Return ─────────────────────────────────────────────────────────────────
 
   list(
-    value  = value,
+    value          = value,
     interpretation = interpretation,
+    plot           = plot,
     method = paste0(
       "Mean-of-ratios CPUE: mean(sum_kg_folio / dias_efectivos_folio) ",
-      "per anio_corte × tipo_aviso × escala. ",
+      "per ", paste(group_cols, collapse = " x "), ". ",
       "Quality filters: flag_fecha_generica=FALSE, ",
       "flag_dias_efectivos_sospechoso=FALSE, !is.na(dias_efectivos). ",
       "COSECHA excluded. MAYORES and MENORES always separate."
     ),
     params = list(
-      species       = species,
-      state_filter  = state_filter,
-      office_filter = office_filter,
-      flotas        = .VALID_AVISOS,
-      min_trips_warn = .MIN_TRIPS_WARN
+      mode                       = if (panel_mode) "panel" else "utility",
+      office_filter              = office_filter,
+      state_filter               = state_filter,
+      nombre_principal           = nombre_principal,
+      nombre_cientifico_canonico = nombre_cientifico_canonico,
+      year_range                 = year_range,
+      flotas                     = .VALID_AVISOS,
+      min_trips_warn             = .MIN_TRIPS_WARN
     )
   )
+}
+
+# ── .build_cpue_plot ──────────────────────────────────────────────────────────
+# Internal. Panel mode only. See SKILL.md for visual spec.
+
+.build_cpue_plot <- function(value, office_filter, nombre_principal,
+                             nombre_cientifico_canonico) {
+
+  if (!requireNamespace("ggplot2", quietly = TRUE))
+    stop("Package 'ggplot2' is required to generate the CPUE plot.")
+  if (!requireNamespace("scales", quietly = TRUE))
+    stop("Package 'scales' is required to generate the CPUE plot.")
+
+  value$reliable <- value$n_viajes >= .MIN_TRIPS_WARN
+
+  dummy <- value[1L, ]
+  dummy$anio_corte <- NA_integer_
+  dummy$cpue_media <- NA_real_
+  dummy$tipo_aviso <- "n < 5 viajes"
+  dummy$reliable   <- FALSE
+
+  filled_layer_data <- rbind(value[value$reliable, ], dummy)
+
+  fleet_levels <- c("MAYORES", "MENORES", "n < 5 viajes")
+  value$tipo_aviso             <- factor(value$tipo_aviso, levels = fleet_levels)
+  filled_layer_data$tipo_aviso <- factor(filled_layer_data$tipo_aviso, levels = fleet_levels)
+
+  real_data  <- value
+  unreliable <- value[!value$reliable, ]
+
+  cpue_range <- range(value$cpue_media, na.rm = TRUE)
+  use_log    <- (cpue_range[2L] / cpue_range[1L]) > 10
+
+  y_scale <- if (use_log) {
+    ggplot2::scale_y_log10(
+      labels = scales::label_number(accuracy = 0.1, big.mark = ","),
+      name   = "CPUE (kg / dia efectivo)"
+    )
+  } else {
+    ggplot2::scale_y_continuous(
+      labels = scales::label_number(accuracy = 0.1, big.mark = ","),
+      name   = "CPUE (kg / dia efectivo)"
+    )
+  }
+
+  filter_label <- if (!is.null(nombre_principal)) {
+    paste0("Recurso: ", nombre_principal)
+  } else if (!is.null(nombre_cientifico_canonico)) {
+    paste0("Especie: ", nombre_cientifico_canonico)
+  } else {
+    "Todos los recursos"
+  }
+
+  ggplot2::ggplot(mapping = ggplot2::aes(x = anio_corte, y = cpue_media,
+                                          color = tipo_aviso, shape = tipo_aviso)) +
+    ggplot2::geom_line(data = real_data, linewidth = 0.8, na.rm = TRUE) +
+    ggplot2::geom_point(data = filled_layer_data, size = 4, stroke = 1.2, na.rm = TRUE) +
+    ggplot2::geom_point(data = unreliable, shape = 1L, size = 4, stroke = 1.5,
+                        show.legend = FALSE) +
+    y_scale +
+    ggplot2::scale_x_continuous(breaks = scales::breaks_pretty(n = 8)) +
+    ggplot2::scale_color_manual(
+      name   = NULL,
+      values = c(.FLEET_COLORS, "n < 5 viajes" = "grey60"),
+      labels = c(MAYORES = "Flota mayor", MENORES = "Flota menor",
+                 "n < 5 viajes" = "n < 5 viajes")
+    ) +
+    ggplot2::scale_shape_manual(
+      name   = NULL,
+      values = c(.FLEET_SHAPES, "n < 5 viajes" = 1L),
+      labels = c(MAYORES = "Flota mayor", MENORES = "Flota menor",
+                 "n < 5 viajes" = "n < 5 viajes")
+    ) +
+    ggplot2::labs(subtitle = filter_label, x = "A\u00f1o") +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(
+      legend.position  = "bottom",
+      legend.direction = "horizontal",
+      panel.grid.minor = ggplot2::element_blank(),
+      plot.subtitle    = ggplot2::element_text(color = "grey40")
+    )
 }
