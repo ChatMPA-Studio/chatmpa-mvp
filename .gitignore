@@ -16,6 +16,9 @@ outputs/
 *.log
 *.xlsx
 
+# Personal context and notes (not part of the project)
+CONTEXT_*.md
+
 # Personal/local scripts (not part of the project)
 generate_inventory.py
 .Rhistory
