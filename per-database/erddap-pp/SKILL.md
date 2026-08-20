@@ -14,6 +14,11 @@ acquire:
   # Dataset: erdMH1pp8day (MODIS Aqua 8-day NPP, 4 km).
   - source: payload
     as: data
+    provider:
+      server: erddap
+      tool: get_data
+      args:
+        variable: primary_productivity
     columns:
       - lat
       - lon

@@ -15,6 +15,12 @@ acquire:
   # en el body fusionados. Dataset: ncdcOisst21Agg_LonPM180 (OISST v2.1, 0.25°).
   - source: payload
     as: data
+    provider:
+      server: erddap
+      tool: get_data
+      args:
+        variable: sst
+        sst_var: sst
     columns:
       - lat
       - lon

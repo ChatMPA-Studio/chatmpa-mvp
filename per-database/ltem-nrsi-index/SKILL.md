@@ -19,6 +19,9 @@ inputs:
 acquire:
   - source: payload
     as: data
+    provider:
+      server: ltem
+      tool: get_nrsi_data
     columns:
       - time
       - value

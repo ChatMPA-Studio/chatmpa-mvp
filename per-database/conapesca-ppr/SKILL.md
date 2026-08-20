@@ -51,6 +51,15 @@ inputs:
 acquire:
   - source: payload
     as: data
+    provider:
+      server: conapesca
+      tool: get_landings
+      args:
+        group_by: folio
+      params:
+        especie: nombre_cientifico_canonico
+        estado: nombre_estado
+        oficina: nombre_oficina
     columns:
       - anio_corte
       - tipo_aviso

@@ -38,6 +38,15 @@ acquire:
   # la manda en el body. No hay razón para que el servicio la baje de nuevo.
   - source: payload
     as: data
+    provider:
+      server: conapesca
+      tool: get_landings
+      args:
+        group_by: folio
+      params:
+        especie: nombre_cientifico_canonico
+        estado: nombre_estado
+        oficina: nombre_oficina
     columns:
       - folio_aviso
       - anio_corte

@@ -15,6 +15,10 @@ inputs: {}
 acquire:
   - source: payload
     as: data
+    provider:
+      server: ltem
+      tool: get_invertebrate_data
+      # CONSTRUIR: tool pending — must return reef×year×taxa (time, reef, taxa, value, region)
     columns:
       - time
       - reef

@@ -50,6 +50,13 @@ acquire:
   # y manda la tabla en el body.
   - source: payload
     as: data
+    provider:
+      server: conapesca
+      tool: get_landings
+      args:
+        group_by: folio
+      params:
+        estado: nombre_estado
     columns:
       - anio_corte
       - tipo_aviso

@@ -16,6 +16,10 @@ acquire:
   # y manda la tabla en el body. No usar annual_time_series — pierde el reef.
   - source: payload
     as: data
+    provider:
+      server: ltem
+      tool: get_biomass_data
+      # CONSTRUIR: tool pending — must return reef×year biomass (time, reef, value, region)
     columns:
       - time
       - reef
@@ -23,10 +27,13 @@ acquire:
       - region
   - source: payload
     as: data_func
+    required: false
+    provider:
+      server: ltem
+      tool: functional_group_biomass
     columns:
       - functional_group
       - value
-    required: false
 output.table: annual_means
 # GAM con REML: determinista dado el ajuste. El KPI es media aritmética.
 comparable_value: [mean_biomass_g_m2, se_g_m2]

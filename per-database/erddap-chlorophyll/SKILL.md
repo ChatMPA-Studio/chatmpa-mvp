@@ -15,6 +15,11 @@ acquire:
   # Dataset: erdMH1chla8day_R202SQ (MODIS Aqua 8-day, 4 km).
   - source: payload
     as: data
+    provider:
+      server: erddap
+      tool: get_data
+      args:
+        variable: chlorophyll
     columns:
       - lat
       - lon
