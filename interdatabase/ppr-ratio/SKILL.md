@@ -32,7 +32,8 @@ acquire:
       - year
       - pp_geomean
       - cobertura_pct
-output.table: annual
+output:
+  table: annual
 # Fórmula cerrada — determinista. Se comparan las columnas del resultado anual.
 comparable_value: [ppr_pct, ppr_total_kg_c, pp_total_kg_c]
 reference: references/cabo_pulmo_pprratio_reference.json
