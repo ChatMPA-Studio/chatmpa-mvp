@@ -11,7 +11,7 @@ description: >
   the trophic level of the target species.
 inputs:
   species:
-    type: string_vector
+    type: array
     required: true
     description: >
       One or more canonical scientific names (`nombre_cientifico_canonico`).
