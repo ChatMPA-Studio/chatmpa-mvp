@@ -63,7 +63,8 @@ acquire:
       - nombre_oficina_canonico
       - nombre_especie
       - peso_desembarcado_kg
-output.table: kl_table
+output:
+  table: kl_table
 # CA es determinista; k-means con seed=42. Se compara el k óptimo (KL) y el
 # MLG (gradiente máximo, determina si CA es el método correcto).
 comparable_value: [k_optimal_kl, mlg]
