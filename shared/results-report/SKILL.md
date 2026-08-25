@@ -10,7 +10,7 @@ description: >
   Does NOT interpret the ecology; it only describes what the model says.
 inputs:
   sections:
-    type: string_vector
+    type: array
     required: false
     default: "[coefficients, fit_summary, data_summary, diagnostics_flags]"
     description: >
@@ -25,7 +25,8 @@ acquire:
     skill: model-diagnostics
     as: diagnostics_output
     required: false
-output.table: coefficients
+output:
+  table: coefficients
 # Extracción algebraica — determinista. Se comparan R², AIC y BIC.
 comparable_value: [r_squared, aic, bic]
 reference: references/cabo_pulmo_report_reference.json
