@@ -23,7 +23,8 @@ acquire:
     skill: conapesca-lfo-ca
     as: ca_output
     fields: [ca_scores_lfo, kl_table, k_optimal_kl]
-output.table: lookup
+output:
+  table: lookup
 # k-means con seed=42 — determinista. Se compara el WK final (within-cluster SS)
 # para detectar si el clustering corrió con la misma semilla.
 comparable_value: [wk_final]
