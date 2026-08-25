@@ -12,7 +12,7 @@ description: >
   variation in reef trophic state.
 inputs:
   species:
-    type: string_vector
+    type: array
     required: true
     description: >
       One or more canonical scientific names (`nombre_cientifico_canonico`).
@@ -39,7 +39,8 @@ acquire:
     skill: erddap-chlorophyll
     as: data_chl
     columns: [year, anomalia_log10]
-output.table: coefficients
+output:
+  table: coefficients
 # OLS cerrado — determinista. Se comparan R² y coeficientes.
 comparable_value: [r_squared, r_squared_adj]
 reference: references/cabo_pulmo_lm_reference.json
