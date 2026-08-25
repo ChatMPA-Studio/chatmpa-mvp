@@ -11,7 +11,7 @@ description: >
   or when the user wants to understand the data before choosing an analysis.
 inputs:
   sections:
-    type: string_vector
+    type: array
     required: false
     default: "[summary, normality, trends, correlations, outliers, crosscorr]"
     description: >
@@ -24,7 +24,8 @@ acquire:
     as: data
     columns:
       - year  # más una columna por variable; nombres definidos por el orquestador
-output.table: trends
+output:
+  table: trends
 # Determinista. Se comparan tau y dirección del Mann-Kendall por variable.
 comparable_value: [tau, p_value_hr, direction]
 reference: references/cabo_pulmo_eda_reference.json
