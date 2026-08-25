@@ -34,7 +34,8 @@ acquire:
     columns:
       - functional_group
       - value
-output.table: annual_means
+output:
+  table: annual_means
 # GAM con REML: determinista dado el ajuste. El KPI es media aritmética.
 comparable_value: [mean_biomass_g_m2, se_g_m2]
 reference: references/cabo_pulmo_biomass_reference.json
