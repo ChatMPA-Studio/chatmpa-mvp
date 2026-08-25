@@ -9,7 +9,7 @@ description: >
   the validity of the regression before reporting results.
 inputs:
   sections:
-    type: string_vector
+    type: array
     required: false
     default: "[normality, durbin_watson, acf_residuals, pacf_residuals, heteroscedasticity]"
     description: >
@@ -19,7 +19,8 @@ acquire:
     skill: reef-drivers-lm
     as: lm_output
     fields: [fitted, n_years_used, formula_used, species]
-output.table: acf_residuals
+output:
+  table: acf_residuals
 # Determinista — derivado algebraicamente de residuales y valores ajustados.
 # Se comparan DW y autocorrelación de orden 1.
 comparable_value: [dw, r1]
