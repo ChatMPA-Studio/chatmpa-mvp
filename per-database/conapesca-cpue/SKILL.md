@@ -44,9 +44,9 @@ acquire:
       args:
         group_by: folio
       params:
-        species:       especie    # input "species"       → tool param "especie"
-        state_filter:  estado     # input "state_filter"  → tool param "estado"
-        office_filter: oficina    # input "office_filter" → tool param "oficina"
+        species:       especie
+        state_filter:  estado
+        office_filter: oficina
     columns:
       - folio_aviso
       - anio_corte
