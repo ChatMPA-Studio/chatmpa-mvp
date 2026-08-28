@@ -43,9 +43,9 @@ if (!exists("before_after", mode = "function")) {
 #                              specified (office names not unique across states).
 #                              When office_filter = NULL, use to restrict universe
 #                              (e.g. by litoral/region when implemented).
-#   nombre_principal           character or NULL — resource group filter. NULL = all.
-#   nombre_cientifico_canonico character or NULL — species filter. NULL = all.
-#                              Mutually exclusive with nombre_principal.
+#   resource_group             character or NULL — resource group filter (nombre_principal). NULL = all.
+#   species                    character or NULL — species filter (nombre_cientifico_canonico). NULL = all.
+#                              Mutually exclusive with resource_group.
 #   year_range                 integer vector c(start, end) or NULL — NULL = all years.
 #
 # Returns (panel mode):   list(value, plot, method, params)
@@ -53,11 +53,11 @@ if (!exists("before_after", mode = "function")) {
 #   value columns (utility mode) add: nombre_oficina, nombre_estado
 
 run_skill <- function(data,
-                      office_filter              = NULL,
-                      state_filter               = NULL,
-                      nombre_principal           = NULL,
-                      nombre_cientifico_canonico = NULL,
-                      year_range                 = NULL,
+                      office_filter  = NULL,
+                      state_filter   = NULL,
+                      resource_group = NULL,
+                      species        = NULL,
+                      year_range     = NULL,
                       ...) {
 
   # ── Input validation ───────────────────────────────────────────────────────
@@ -77,8 +77,8 @@ run_skill <- function(data,
   if (panel_mode && (is.null(state_filter) || !nzchar(state_filter)))
     warning("'state_filter' is recommended with 'office_filter' — ",
             "office names are not unique across states.")
-  if (!is.null(nombre_principal) && !is.null(nombre_cientifico_canonico))
-    stop("'nombre_principal' and 'nombre_cientifico_canonico' are mutually exclusive.")
+  if (!is.null(resource_group) && !is.null(species))
+    stop("'resource_group' and 'species' are mutually exclusive.")
   if (!is.null(year_range) &&
       (length(year_range) != 2 || !is.numeric(year_range) || year_range[1] > year_range[2]))
     stop("'year_range' must be a two-element numeric vector c(start, end).")
@@ -91,10 +91,10 @@ run_skill <- function(data,
     base_mask <- base_mask & (data$nombre_oficina == office_filter)
   if (!is.null(state_filter) && nzchar(state_filter))
     base_mask <- base_mask & (data$nombre_estado == state_filter)
-  if (!is.null(nombre_principal))
-    base_mask <- base_mask & (data$nombre_principal == nombre_principal)
-  if (!is.null(nombre_cientifico_canonico))
-    base_mask <- base_mask & (data$nombre_cientifico_canonico == nombre_cientifico_canonico)
+  if (!is.null(resource_group))
+    base_mask <- base_mask & (data$nombre_principal == resource_group)
+  if (!is.null(species))
+    base_mask <- base_mask & (data$nombre_cientifico_canonico == species)
   if (!is.null(year_range))
     base_mask <- base_mask &
                  data$anio_corte >= year_range[1] &
@@ -107,8 +107,8 @@ run_skill <- function(data,
     stop("No records found.",
          if (panel_mode)                            paste0(" office='", office_filter, "'"),
          if (!is.null(state_filter))                paste0(" state='", state_filter, "'"),
-         if (!is.null(nombre_principal))            paste0(" nombre_principal='", nombre_principal, "'"),
-         if (!is.null(nombre_cientifico_canonico))  paste0(" nombre_cientifico_canonico='", nombre_cientifico_canonico, "'"))
+         if (!is.null(resource_group))  paste0(" resource_group='", resource_group, "'"),
+         if (!is.null(species))         paste0(" species='", species, "'"))
 
   # Quality filters (applied after counting total for n_viajes_excluidos)
   data_clean <- folios_base[
@@ -223,7 +223,7 @@ run_skill <- function(data,
   # ── Step 4: Plot (panel mode only) ────────────────────────────────────────
 
   plot <- if (panel_mode) {
-    .build_cpue_plot(value, office_filter, nombre_principal, nombre_cientifico_canonico)
+    .build_cpue_plot(value, office_filter, resource_group, species)
   } else {
     NULL
   }
@@ -245,8 +245,8 @@ run_skill <- function(data,
       mode                       = if (panel_mode) "panel" else "utility",
       office_filter              = office_filter,
       state_filter               = state_filter,
-      nombre_principal           = nombre_principal,
-      nombre_cientifico_canonico = nombre_cientifico_canonico,
+      resource_group = resource_group,
+      species        = species,
       year_range                 = year_range,
       flotas                     = .VALID_AVISOS,
       min_trips_warn             = .MIN_TRIPS_WARN
@@ -257,8 +257,7 @@ run_skill <- function(data,
 # ── .build_cpue_plot ──────────────────────────────────────────────────────────
 # Internal. Panel mode only. See SKILL.md for visual spec.
 
-.build_cpue_plot <- function(value, office_filter, nombre_principal,
-                             nombre_cientifico_canonico) {
+.build_cpue_plot <- function(value, office_filter, resource_group, species) {
 
   if (!requireNamespace("ggplot2", quietly = TRUE))
     stop("Package 'ggplot2' is required to generate the CPUE plot.")
@@ -297,10 +296,10 @@ run_skill <- function(data,
     )
   }
 
-  filter_label <- if (!is.null(nombre_principal)) {
-    paste0("Recurso: ", nombre_principal)
-  } else if (!is.null(nombre_cientifico_canonico)) {
-    paste0("Especie: ", nombre_cientifico_canonico)
+  filter_label <- if (!is.null(resource_group)) {
+    paste0("Recurso: ", resource_group)
+  } else if (!is.null(species)) {
+    paste0("Especie: ", species)
   } else {
     "Todos los recursos"
   }
