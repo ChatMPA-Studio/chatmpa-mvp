@@ -32,7 +32,20 @@ if (!exists("before_after", mode = "function")) {
 #
 # Returns: list(value, method, params, geometry_source)
 
-run_skill <- function(data, geometry_local, geometry_regional, ...) {
+run_skill <- function(data, geometry_local = NULL, geometry_regional = NULL, ...) {
+
+  # ── Resolve geometries from mpa / lme inputs if not passed directly ────────
+  args <- list(...)
+  if (is.null(geometry_local)) {
+    mpa <- args$mpa
+    if (is.null(mpa) || !nzchar(mpa))
+      stop("'geometry_local' (sf) not provided and 'mpa' input is missing — cannot resolve AMP polygon.")
+    geometry_local <- get_amp_geometry(mpa)
+  }
+  if (is.null(geometry_regional)) {
+    lme_name <- if (!is.null(args$lme) && nzchar(args$lme)) args$lme else "Gulf of California"
+    geometry_regional <- get_lme_geometry(lme_name)
+  }
 
   # ── Input validation ───────────────────────────────────────────────────────
 

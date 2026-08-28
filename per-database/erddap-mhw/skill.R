@@ -38,10 +38,19 @@ if (!exists("before_after", mode = "function")) {
 #   value columns: year (int), kpi_mhw_days_per_yr (int), n_events_per_yr (int),
 #                  mean_intensity_per_yr (num, °C above threshold)
 
-run_skill <- function(data, geometry_local, ...) {
+run_skill <- function(data, geometry_local = NULL, ...) {
 
   if (!requireNamespace("heatwaveR", quietly = TRUE)) {
     stop("Package 'heatwaveR' required. Install with: install.packages('heatwaveR')")
+  }
+
+  # ── Resolve geometry_local from mpa if not passed directly ────────────────
+  if (is.null(geometry_local)) {
+    args <- list(...)
+    mpa  <- args$mpa
+    if (is.null(mpa) || !nzchar(mpa))
+      stop("'geometry_local' (sf) not provided and 'mpa' input is missing — cannot resolve AMP polygon.")
+    geometry_local <- get_amp_geometry(mpa)
   }
 
   # ── Input validation ───────────────────────────────────────────────────────

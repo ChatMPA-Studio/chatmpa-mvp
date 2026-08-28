@@ -8,6 +8,7 @@ data/*
 *.csv
 # Safe reference tables (public data, no sensitive records) — explicitly tracked
 !per-database/conapesca-lfo-regions/references/lfo_region_lookup.csv
+!shared/geometries/amp_geometry_lookup.csv
 *.parquet
 *.nc
 

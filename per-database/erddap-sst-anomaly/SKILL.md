@@ -17,6 +17,14 @@ inputs:
       Nombre del AMP tal como aparece en amp_geometry_lookup.csv (ej. "Cabo Pulmo").
       Usado por skill.R para obtener geometry_local vía get_amp_geometry(mpa).
       Si se omite, skill.R no puede recortar los datos y fallará.
+  lme:
+    type: string
+    required: false
+    description: >
+      Nombre del LME (Large Marine Ecosystem) para la escala regional, p. ej.
+      "Gulf of California". Si se omite, skill.R usa "Gulf of California" por
+      default (adecuado para AMPs del Golfo y Pacífico central mexicano).
+      Obtenido vía get_lme_geometry(lme) de shared/spatial_join/spatial_join.R.
 acquire:
   # El orquestador llama al MCP de ERDDAP (dos calls: sst y anom) y los manda
   # en el body fusionados. Dataset: ncdcOisst21Agg_LonPM180 (OISST v2.1, 0.25°).
