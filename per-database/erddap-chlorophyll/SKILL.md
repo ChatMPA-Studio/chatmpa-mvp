@@ -27,8 +27,18 @@ acquire:
       tool: get_data
       args:
         variable: chlorophyll
-        bbox: "pacific_mexico"
+        # Demo: bbox del Golfo de California — cubre Cabo Pulmo (local) y el
+        # LME Golfo de California (regional). Clorofila está en Zarr local
+        # (pacific_mexico), así que el bbox recorta el Zarr antes de serializar.
+        # MODIS 4 km: Gulf of CA ≈ 78 000 píxeles × 46 composites × 22 años
+        # ≈ 79M valores → ~475 MB JSON. Engineering: implementar pre-aggregación
+        # anual en el MCP (issue #22) para reducir a ~78K valores (~5 MB JSON).
+        # Producción: derivar bbox del LME real para el AMP seleccionado.
+        bbox: [-117.5, -106.0, 22.0, 32.0]
         date_range: ["2003-01-01", "2025-12-31"]
+    # NOTA: mcp__erddap__get_data devuelve array 3D {values[time][lat][lon],
+    # times, lat, lon} — NO filas tabulares. El orquestador debe aplanarlo a
+    # data.frame(lat, lon, time, chlorophyll) antes de inyectarlo como payload.
     columns:
       - lat
       - lon

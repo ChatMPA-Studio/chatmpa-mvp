@@ -28,8 +28,19 @@ acquire:
       args:
         variable: sst
         sst_var: sst
-        bbox: "pacific_mexico"
+        # Demo: bbox del Golfo de California — cubre Cabo Pulmo (local) y el
+        # LME Golfo de California (regional). ~7× más chico que pacific_mexico
+        # en píxeles OISST. Producción: derivar bbox del LME de la consulta.
+        # ⚠️  SST no está en el Zarr local — se consulta LIVE a ERDDAP.
+        # pacific_mexico + 44 años diario ≈ 74M valores (SST) → timeout.
+        # Con Golfo de California ≈ 1,840 píxeles × 16 000 días ≈ 30M valores.
+        # Engineering: implementar pre-aggregación anual en el MCP (issue #22).
+        bbox: [-117.5, -106.0, 22.0, 32.0]
         date_range: ["1982-01-01", "2025-12-31"]
+    # NOTA: mcp__erddap__get_data devuelve array 3D {values[time][lat][lon],
+    # times, lat, lon}. El orquestador debe hacer DOS calls (sst_var="sst" y
+    # sst_var="anom") y fusionar los resultados en un data.frame(lat, lon,
+    # time, sst, anom) antes de inyectarlo como payload.
     columns:
       - lat
       - lon

@@ -31,8 +31,17 @@ acquire:
       args:
         variable: sst
         sst_var: sst
-        bbox: "pacific_mexico"
+        # Demo: bbox fijo alrededor de Cabo Pulmo (8×8 píxeles OISST 0.25°).
+        # Producción: el orquestador debe derivar bbox del polígono del AMP via
+        #   amp_geometry_lookup.csv → bbox = st_bbox(geometry_local) + buffer.
+        bbox: [-110.5, -108.5, 22.5, 24.5]
         date_range: ["1982-01-01", "2025-12-31"]
+    # NOTA: mcp__erddap__get_data devuelve un array 3D {values[time][lat][lon],
+    # times, lat, lon} — NO filas tabulares. El orquestador debe aplanarlo a
+    # data.frame(lat, lon, time, sst) antes de inyectarlo como payload.
+    # SST no está en el Zarr local — se consulta LIVE a ERDDAP. El bbox pequeño
+    # es crítico para evitar timeouts. Con [-110.5,-108.5,22.5,24.5] la query
+    # devuelve ~64 píxeles × 44 años × 365 días ≈ 1M valores (~6 MB JSON).
     columns:
       - lat
       - lon
