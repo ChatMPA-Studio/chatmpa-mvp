@@ -68,7 +68,7 @@ if (!exists("before_after", mode = "function")) {
 #
 # Args:
 #   data      data.frame — reef-year biomass (time, reef, value, region)
-#   data_func data.frame — optional functional-group breakdown (functional_group, value)
+#   data_func data.frame — optional functional-group breakdown (Functional_groups, mean_biomass)
 #
 # Returns: list(value, method, params)
 
@@ -148,18 +148,14 @@ run_skill <- function(data, data_func = NULL, ...) {
 
   func_out <- NULL
   if (!is.null(data_func)) {
-    valid_groups <- c("GenPred_solitary", "GenPred_schooling", "EpiBent_schooling",
-                      "Crip_schooling", "Crip_solitary", "Plank")
-    req_func <- c("functional_group", "value")
+    req_func <- c("Functional_groups", "mean_biomass")
     if (!all(req_func %in% names(data_func))) {
-      warning("data_func missing required columns — functional group breakdown skipped.")
+      warning("data_func missing required columns (Functional_groups, mean_biomass) — ",
+              "functional group breakdown skipped.")
     } else {
-      unknown <- setdiff(data_func$functional_group, valid_groups)
-      if (length(unknown) > 0)
-        warning("Unknown functional groups excluded: ", paste(unknown, collapse = ", "))
-      func_out <- data_func[data_func$functional_group %in% valid_groups, ]
-      func_out$biomass_g_m2 <- round(func_out$value, 3)
-      func_out$value        <- NULL
+      func_out <- data_func[, c("Functional_groups", "mean_biomass"), drop = FALSE]
+      names(func_out) <- c("functional_group", "biomass_g_m2")
+      func_out$biomass_g_m2 <- round(func_out$biomass_g_m2, 3)
     }
   }
 

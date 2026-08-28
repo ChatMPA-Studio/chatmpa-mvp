@@ -65,8 +65,8 @@ acquire:
         region: region
         year:   year
     columns:
-      - functional_group
-      - value
+      - Functional_groups
+      - mean_biomass
 output:
   table: annual_means
 # GAM con REML: determinista dado el ajuste. El KPI es media aritmética.
@@ -94,9 +94,10 @@ Input — reef-year level biomass (one row per year × reef combination):
 - `n_transects` — number of transects contributing (optional; for diagnostic reporting)
 
 Optional secondary input — functional-group breakdown for the most recent year:
-- `functional_group` — one of: GenPred_solitary, GenPred_schooling,
-  EpiBent_schooling, Crip_schooling, Crip_solitary, Plank
-- `value` — mean biomass contribution (g/m²) for that functional group
+- `Functional_groups` — one of: piscivores, pisci-invertivores, grazers,
+  macro-invertivores, micro-invertivores, browsers, detritivores,
+  excavator/scraper, corallivore, planktivores, spongivore
+- `mean_biomass` — mean biomass (g/m²) for that functional group
 
 MCP source (Stage 2 of ORCHESTRATION):
 - Primary: query that returns reef-year biomass (year × reef, with transect
