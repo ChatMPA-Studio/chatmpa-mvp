@@ -95,6 +95,37 @@ too.
 
 See `CONVENTIONS.md` for naming and versioning rules.
 
+## Skills inventory
+
+**Per-database** (15 skills · source-level analysis)
+
+| Skill | Database | Status | What it computes |
+|-------|----------|--------|-----------------|
+| `ltem-nrsi-index` | LTEM | Active | Normalized reef status index (trophic structure) |
+| `ltem-fish-biomass` | LTEM | Active | Fish biomass by functional group + GAM trend |
+| `ltem-invertebrate-abundance` | LTEM | Active | Invertebrate abundance by taxon |
+| `conapesca-cpue` | CONAPESCA | Active | CPUE time series (MENORES + MAYORES) by office/region |
+| `conapesca-landings-timeseries` | CONAPESCA | Active | Annual landed volume and value by fleet type |
+| `conapesca-catch-composition` | CONAPESCA | Active | Capture vs aquaculture split (volume and value %) |
+| `conapesca-national-ranking` | CONAPESCA | Active | National rank of a landing office by volume and value |
+| `conapesca-tmca` | CONAPESCA | Active | Mean annual growth rate + trend category |
+| `conapesca-lfo-regions` | CONAPESCA | Active | LFO region lookup (k=7, MENORES, geo-constrained) |
+| `conapesca-lfo-ca` | CONAPESCA | Active | Gulf of California LFO regional assignment |
+| `conapesca-ppr` | CONAPESCA | Active | Primary production required by fisheries |
+| `conapesca-pfe` | CONAPESCA | Deferred | Pre-fishing era baseline (pending data decision) |
+| `erddap-sst-anomaly` | ERDDAP/NOAA | Active | Sea surface temperature anomaly (OISST) |
+| `erddap-chlorophyll` | ERDDAP/NOAA | Active | Chlorophyll-a from MODIS-Aqua |
+| `erddap-pp` | ERDDAP/NOAA | Active | Net primary productivity |
+
+**Interdatabase** (4 skills · cross-MCP analysis)
+
+| Skill | Combines | What it computes |
+|-------|----------|-----------------|
+| `reef-drivers-lm` | LTEM + SST + Chl-a | Linear model: biomass ~ SST + productivity |
+| `ppr-ratio` | CONAPESCA + ERDDAP | Fishing pressure relative to primary production |
+| `eda-multivariate` | Any | Multivariate EDA for cross-source datasets |
+| `model-diagnostics` | Any | Model fit diagnostics and residual checks |
+
 ## Orchestration
 
 `ORCHESTRATION.md` is the playbook for turning a natural-language conservation

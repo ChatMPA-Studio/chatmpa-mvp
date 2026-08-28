@@ -76,9 +76,9 @@ acquire:
       # nombre_principal y nombre_cientifico_canonico NO están en el output de
       # get_landings(group_by="folio") — el filtro de especie/recurso se aplica
       # server-side vía params (especie / nombre_principal / estado / oficina).
-# Sin `output.table`: run_skill() devuelve un solo data.frame, no una lista de
-# tablas, y ahí no hay nada que elegir.
-#
+output:
+  table: cpue_series
+  columns: [anio_corte, tipo_aviso, cpue_media, cpue_sd, n_viajes, n_viajes_excluidos, peso_desembarcado_kg_total, n_viajes_recomputado]
 # Skill determinista (sin controles aleatorios), así que las corridas deben
 # coincidir exactamente. Se comparan las dos columnas calculadas: `cpue_media`
 # sola dejaría pasar un cambio que solo afecte la dispersión.
