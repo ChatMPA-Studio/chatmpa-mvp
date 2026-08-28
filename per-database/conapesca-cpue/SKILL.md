@@ -67,14 +67,15 @@ acquire:
       - tipo_aviso
       - nombre_estado
       - nombre_oficina
-      - nombre_principal
-      - nombre_cientifico_canonico
       - peso_desembarcado_kg
       - dias_efectivos
       - dias_efectivos_fuente
       - flag_fecha_generica
       - flag_dias_efectivos_sospechoso
       - flag_periodo_futuro
+      # nombre_principal y nombre_cientifico_canonico NO están en el output de
+      # get_landings(group_by="folio") — el filtro de especie/recurso se aplica
+      # server-side vía params (especie / nombre_principal / estado / oficina).
 # Sin `output.table`: run_skill() devuelve un solo data.frame, no una lista de
 # tablas, y ahí no hay nada que elegir.
 #

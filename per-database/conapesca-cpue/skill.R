@@ -30,8 +30,8 @@ if (!exists("before_after", mode = "function")) {
 # Args:
 #   data                       data.frame — from get_landings(group_by="folio").
 #                              Required cols: folio_aviso, anio_corte, tipo_aviso,
-#                              nombre_estado, nombre_oficina, nombre_principal,
-#                              nombre_cientifico_canonico, peso_desembarcado_kg,
+#                              nombre_estado, nombre_oficina,
+#                              peso_desembarcado_kg,
 #                              dias_efectivos, dias_efectivos_fuente,
 #                              flag_fecha_generica, flag_dias_efectivos_sospechoso,
 #                              flag_periodo_futuro
@@ -62,9 +62,11 @@ run_skill <- function(data,
 
   # ── Input validation ───────────────────────────────────────────────────────
 
+  # nombre_principal / nombre_cientifico_canonico absent: get_landings(group_by="folio")
+  # aggregates at folio level and does not return species columns. Species/resource
+  # filtering is applied server-side by the MCP via the params block in SKILL.md.
   required_cols <- c("folio_aviso", "anio_corte", "tipo_aviso",
                      "nombre_estado", "nombre_oficina",
-                     "nombre_principal", "nombre_cientifico_canonico",
                      "peso_desembarcado_kg", "dias_efectivos",
                      "dias_efectivos_fuente", "flag_fecha_generica",
                      "flag_dias_efectivos_sospechoso", "flag_periodo_futuro")
@@ -91,10 +93,8 @@ run_skill <- function(data,
     base_mask <- base_mask & (data$nombre_oficina == office_filter)
   if (!is.null(state_filter) && nzchar(state_filter))
     base_mask <- base_mask & (data$nombre_estado == state_filter)
-  if (!is.null(resource_group))
-    base_mask <- base_mask & (data$nombre_principal == resource_group)
-  if (!is.null(species))
-    base_mask <- base_mask & (data$nombre_cientifico_canonico == species)
+  # Species/resource_group filters are applied server-side by the MCP; no
+  # client-side column check needed here.
   if (!is.null(year_range))
     base_mask <- base_mask &
                  data$anio_corte >= year_range[1] &
