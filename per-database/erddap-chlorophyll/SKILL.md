@@ -27,6 +27,8 @@ acquire:
       tool: get_data
       args:
         variable: chlorophyll
+        bbox: "pacific_mexico"
+        date_range: ["2003-01-01", "2025-12-31"]
     columns:
       - lat
       - lon

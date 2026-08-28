@@ -28,6 +28,8 @@ acquire:
       args:
         variable: sst
         sst_var: sst
+        bbox: "pacific_mexico"
+        date_range: ["1982-01-01", "2025-12-31"]
     columns:
       - lat
       - lon
