@@ -88,6 +88,7 @@ run_skill <- function(data, data_func = NULL, ...) {
     stop("'value' (biomass g/m²) must be numeric.")
 
   data <- data[!is.na(data$value) & !is.na(data$time), ]
+  data$value <- data$value * 0.01   # g/m² → T/ha (1 g/m² = 0.01 T/ha)
 
   n_unique_years <- length(unique(data$time))
   n_reefs        <- length(unique(data$reef))
@@ -103,8 +104,8 @@ run_skill <- function(data, data_func = NULL, ...) {
   kpi_sd     <- sd(annual_kpi, na.rm = TRUE)
 
   kpi <- list(
-    mean_biomass_g_m2  = round(kpi_mean, 2),
-    sd_g_m2            = round(kpi_sd, 2),
+    mean_biomass_t_ha  = round(kpi_mean, 4),
+    sd_t_ha            = round(kpi_sd, 4),
     years_included     = as.integer(kpi_years),
     n_years_in_kpi     = length(kpi_years)
   )
@@ -115,9 +116,9 @@ run_skill <- function(data, data_func = NULL, ...) {
     vals <- data$value[data$time == yr]
     n    <- sum(!is.na(vals))
     data.frame(
-      year             = yr,
-      mean_biomass_g_m2 = round(mean(vals, na.rm = TRUE), 3),
-      se_g_m2          = round(sd(vals, na.rm = TRUE) / sqrt(n), 3),
+      year              = yr,
+      mean_biomass_t_ha = round(mean(vals, na.rm = TRUE), 4),
+      se_t_ha           = round(sd(vals, na.rm = TRUE) / sqrt(n), 4),
       n_reefs           = n
     )
   }))
@@ -154,17 +155,17 @@ run_skill <- function(data, data_func = NULL, ...) {
               "functional group breakdown skipped.")
     } else {
       func_out <- data_func[, c("Functional_groups", "mean_biomass"), drop = FALSE]
-      names(func_out) <- c("functional_group", "biomass_g_m2")
-      func_out$biomass_g_m2 <- round(func_out$biomass_g_m2, 3)
+      names(func_out) <- c("functional_group", "biomass_t_ha")
+      func_out$biomass_t_ha <- round(func_out$biomass_t_ha * 0.01, 4)
     }
   }
 
   # ── Interpretation ────────────────────────────────────────────────────────
 
-  ba  <- before_after(annual_means, "mean_biomass_g_m2",
+  ba  <- before_after(annual_means, "mean_biomass_t_ha",
                       before_years = head(all_years, .KPI_YEARS),
                       recent_n     = .KPI_YEARS)
-  mkt <- mk_trend(annual_means, "mean_biomass_g_m2")
+  mkt <- mk_trend(annual_means, "mean_biomass_t_ha")
 
   bio_status <- if (!is.null(ba$status)) "neutral" else {
     p_val <- if (!is.null(mkt$p)) mkt$p else 1
@@ -183,7 +184,7 @@ run_skill <- function(data, data_func = NULL, ...) {
     insight_sentence(
       var_label_en  = "Fish biomass",
       var_label_es  = "La biomasa de peces",
-      unit          = "g/m²",
+      unit          = "T/ha",
       before_mean   = ba$before_mean, after_mean = ba$after_mean,
       delta         = ba$delta,       pct_change = ba$pct_change,
       before_period = ba$before_period, after_period = ba$after_period,
@@ -235,8 +236,8 @@ run_skill <- function(data, data_func = NULL, ...) {
       gam_family   = "gaussian",
       gam_method   = "REML",
       grid_points  = .GRID_POINTS,
-      unit         = "g/m2",
-      unit_note    = "1 g/m2 = 0.01 T/ha"
+      unit         = "T/ha",
+      unit_note    = "converted from MCP output (g/m²) via × 0.01"
     )
   )
 }
