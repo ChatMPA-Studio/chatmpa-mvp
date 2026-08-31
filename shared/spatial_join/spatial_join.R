@@ -44,19 +44,20 @@ get_amp_geometry <- function(amp_name) {
   source <- row$geometry_source
 
   if (source == "WDPA") {
-    if (!requireNamespace("wdpar", quietly = TRUE)) {
-      stop("Package 'wdpar' required for WDPA geometries. Install with: install.packages('wdpar')")
+    wdpa_name  <- row$wdpa_nombre
+    local_gpkg <- file.path(.GEOMETRIES_DIR, "wdpa_mex_amps.gpkg")
+    if (!file.exists(local_gpkg)) {
+      stop("wdpa_mex_amps.gpkg not found in shared/geometries/. ",
+           "Run shared/geometries/setup_amp_geometries.R to generate it.")
     }
-    wdpa_name <- row$wdpa_nombre
-    cat("Fetching WDPA geometry for:", wdpa_name, "\n")
-    wdpa_mex <- wdpar::wdpa_fetch("MEX", wait = TRUE, download_dir = tempdir()) |>
+    cat("Loading WDPA geometry from local cache for:", wdpa_name, "\n")
+    wdpa_mex <- st_read(local_gpkg, quiet = TRUE) |>
       filter(grepl(wdpa_name, NAME, ignore.case = TRUE) |
              grepl(wdpa_name, NAME_ENG, ignore.case = TRUE)) |>
-      st_transform(4326) |>
       slice(1)
 
     if (nrow(wdpa_mex) == 0) stop("WDPA match not found for: ", wdpa_name)
-    geom <- wdpa_mex |> select(NAME, REP_M_AREA, geometry)
+    geom <- wdpa_mex |> select(NAME, REP_M_AREA)
 
   } else {
     # CONANP_pending_review
