@@ -12,9 +12,13 @@ library(readr)
 
 JACCARD_THRESHOLD <- 0.95
 
-metricas_path <- r"(C:\Users\carol\OneDrive\Documentos\CBMC\Projects\comparar_amp_wdpa_conanp.csv)"
-conanp_zip    <- r"(C:\Users\carol\Downloads\232-ANP_ITRF08_19162026.zip)"
-out_dir       <- r"(C:\Users\carol\OneDrive\Documentos\CBMC\Projects\chatmpa-mvp\shared\geometries)"
+# ── Edit these paths before running ──────────────────────────────────────────
+# metricas_path: Jaccard scores CSV (comparar_amp_wdpa_conanp.csv), ask Carol
+# conanp_zip:    CONANP official shapefile zip (232-ANP_ITRF08_19162026.zip)
+# out_dir:       output directory (shared/geometries/ relative to repo root)
+metricas_path <- "comparar_amp_wdpa_conanp.csv"
+conanp_zip    <- "232-ANP_ITRF08_19162026.zip"
+out_dir       <- file.path(dirname(sys.frame(1)$ofile))
 
 metricas <- read_csv(metricas_path, show_col_types = FALSE)
 
