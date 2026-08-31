@@ -1,13 +1,19 @@
 # skill.R — erddap-chlorophyll
 #
 # Computes annual chlorophyll-a geometric means and log10 anomalies at local
-# (AMP polygon) and regional (LME polygon) scales from MODIS Aqua 8-day
-# Science Quality composites (NOAA CoastWatch ERDDAP).
+# (AMP bbox) and regional (LME bbox) scales from MODIS Aqua 8-day Science
+# Quality composites (NOAA CoastWatch ERDDAP).
+#
+# Data arrives pre-aggregated (aggregate_spatial=TRUE from ERDDAP MCP):
+#   data_local    — {time, chlorophyll} 8-day series for the AMP bbox
+#   data_regional — {time, chlorophyll} 8-day series for the LME bbox
+# No clip_to_geometry needed; the bbox IS the spatial filter.
 #
 # See SKILL.md for the full data contract and method specification.
 #
 # Dependencies:
-#   shared/spatial_join/spatial_join.R  — clip_to_geometry()
+#   shared/spatial_join/spatial_join.R  — get_amp_geometry(), get_lme_geometry()
+#                                         (used for geometry_source metadata only)
 
 source(file.path(dirname(sys.frame(1)$ofile),
                  "../../shared/spatial_join/spatial_join.R"))
@@ -19,7 +25,7 @@ if (!exists("before_after", mode = "function")) {
 
 # ── Constants (fixed — do not change without updating SKILL.md) ──────────────
 
-.COVERAGE_THRESHOLD  <- 30          # % valid pixel-composites below which year = NA
+.COVERAGE_THRESHOLD  <- 30          # % valid composites below which year = NA
 .BASELINE_START      <- 2003L       # baseline period start (fixed)
 .BASELINE_END        <- 2020L       # baseline period end (fixed)
 .HIGH_PROD_THRESHOLD <-  0.3        # log10 anomaly flagged as high productivity (~2× baseline)
@@ -28,56 +34,44 @@ if (!exists("before_after", mode = "function")) {
 # ── run_skill ────────────────────────────────────────────────────────────────
 #
 # Args:
-#   data              data.frame — minimal contract from ERDDAP MCP:
-#                     columns: lat (num), lon (num), time (Date), chlorophyll (num, mg/m³)
-#   geometry_local    sf object  — AMP polygon, from get_amp_geometry()
-#   geometry_regional sf object  — LME polygon, from get_lme_geometry()
+#   data_local    data.frame — aggregate_spatial=TRUE from ERDDAP MCP (AMP bbox):
+#                 columns: time (chr/Date), chlorophyll (num, mg/m³)
+#   data_regional data.frame — same format, for the LME bbox (optional)
 #
 # Returns: list(value, method, params, geometry_source)
 
-run_skill <- function(data, geometry_local = NULL, geometry_regional = NULL, ...) {
+run_skill <- function(data_local, data_regional = NULL, ...) {
 
-  # ── Resolve geometries from mpa / lme inputs if not passed directly ────────
+  # ── Geometry resolution (metadata only, no spatial clip) ──────────────────
   args <- list(...)
-  if (is.null(geometry_local)) {
-    mpa <- args$mpa
-    if (is.null(mpa) || !nzchar(mpa))
-      stop("'geometry_local' (sf) not provided and 'mpa' input is missing — cannot resolve AMP polygon.")
-    geometry_local <- get_amp_geometry(mpa)
-  }
-  if (is.null(geometry_regional)) {
-    lme_name <- if (!is.null(args$lme) && nzchar(args$lme)) args$lme else "Gulf of California"
-    geometry_regional <- get_lme_geometry(lme_name)
-  }
+  mpa      <- args$mpa
+  lme_name <- if (!is.null(args$lme) && nzchar(args$lme)) args$lme else "Gulf of California"
+
+  geometry_local <- if (!is.null(mpa) && nzchar(mpa)) {
+    tryCatch(get_amp_geometry(mpa), error = function(e) NULL)
+  } else NULL
+
+  geometry_regional <- tryCatch(get_lme_geometry(lme_name), error = function(e) NULL)
 
   # ── Input validation ───────────────────────────────────────────────────────
 
-  required_cols <- c("lat", "lon", "time", "chlorophyll")
-  missing_cols  <- setdiff(required_cols, names(data))
-  if (length(missing_cols) > 0) {
-    stop("Missing columns in data: ", paste(missing_cols, collapse = ", "),
-         "\nExpected: ", paste(required_cols, collapse = ", "))
+  required_cols <- c("time", "chlorophyll")
+  for (nm in c("data_local", "data_regional")) {
+    df <- get(nm)
+    if (is.null(df)) next
+    missing_cols <- setdiff(required_cols, names(df))
+    if (length(missing_cols) > 0) {
+      stop(nm, " missing columns: ", paste(missing_cols, collapse = ", "),
+           "\nExpected: ", paste(required_cols, collapse = ", "),
+           " (aggregate_spatial=TRUE response from ERDDAP MCP)")
+    }
   }
-  if (!inherits(geometry_local,    "sf")) stop("geometry_local must be an sf object")
-  if (!inherits(geometry_regional, "sf")) stop("geometry_regional must be an sf object")
 
-  # ── Clip to each scale ─────────────────────────────────────────────────────
+  # ── Per-scale annual aggregation ──────────────────────────────────────────
 
-  scales <- list(
-    local    = geometry_local,
-    regional = geometry_regional
-  )
-
-  results <- lapply(names(scales), function(escala) {
-    geom      <- scales[[escala]]
-    data_clip <- clip_to_geometry(data, geom)
-    n_pixels  <- length(unique(paste(data_clip$lat, data_clip$lon)))
-
-    # ── Baseline geometric mean (2003–2020, all valid pixel-composites) ──────
-
-    data_valid <- data_clip[
-      !is.na(data_clip$chlorophyll) & data_clip$chlorophyll > 0, ]
-    data_valid$year <- as.integer(format(as.Date(data_valid$time), "%Y"))
+  .process_scale <- function(df, escala) {
+    data_valid       <- df[!is.na(df$chlorophyll) & df$chlorophyll > 0, ]
+    data_valid$year  <- as.integer(format(as.Date(data_valid$time), "%Y"))
 
     baseline_data <- data_valid[
       data_valid$year >= .BASELINE_START & data_valid$year <= .BASELINE_END, ]
@@ -87,13 +81,9 @@ run_skill <- function(data, geometry_local = NULL, geometry_regional = NULL, ...
            .BASELINE_START, "-", .BASELINE_END, ") for scale: ", escala)
     }
 
-    chl_baseline <- 10 ^ mean(log10(baseline_data$chlorophyll))
-
-    # ── Annual aggregation ────────────────────────────────────────────────────
-
-    years <- sort(unique(data_valid$year))
-    # Expected pixel-composites per year: n_pixels × 46 (approx 8-day composites)
-    expected_per_year <- n_pixels * 46
+    chl_baseline     <- 10 ^ mean(log10(baseline_data$chlorophyll))
+    years            <- sort(unique(data_valid$year))
+    expected_per_year <- 46L  # ~46 8-day composites per year after bbox aggregation
 
     annual <- do.call(rbind, lapply(years, function(yr) {
       yr_data <- data_valid[data_valid$year == yr, ]
@@ -104,20 +94,20 @@ run_skill <- function(data, geometry_local = NULL, geometry_regional = NULL, ...
         warning("Year ", yr, " (", escala, "): cobertura_pct = ", cob_pct,
                 "% < ", .COVERAGE_THRESHOLD, "% — returning NA.")
         return(data.frame(
-          year              = yr,
-          escala            = escala,
-          chl_geomean       = NA_real_,
-          anomalia_log10    = NA_real_,
-          anomalia_mgm3     = NA_real_,
-          n_pixels          = n_pixels,
-          cobertura_pct     = cob_pct,
-          prod_flag         = NA_character_
+          year           = yr,
+          escala         = escala,
+          chl_geomean    = NA_real_,
+          anomalia_log10 = NA_real_,
+          anomalia_mgm3  = NA_real_,
+          n_pixels       = NA_integer_,
+          cobertura_pct  = cob_pct,
+          prod_flag      = NA_character_
         ))
       }
 
-      chl_geomean    <- 10 ^ mean(log10(yr_data$chlorophyll))
-      anom_log10     <- round(log10(chl_geomean) - log10(chl_baseline), 4)
-      anom_mgm3      <- round(chl_geomean - chl_baseline, 4)
+      chl_geomean <- 10 ^ mean(log10(yr_data$chlorophyll))
+      anom_log10  <- round(log10(chl_geomean) - log10(chl_baseline), 4)
+      anom_mgm3   <- round(chl_geomean - chl_baseline, 4)
 
       prod_flag <- dplyr::case_when(
         anom_log10 >  .HIGH_PROD_THRESHOLD ~ "high",
@@ -131,7 +121,7 @@ run_skill <- function(data, geometry_local = NULL, geometry_regional = NULL, ...
         chl_geomean    = round(chl_geomean, 4),
         anomalia_log10 = anom_log10,
         anomalia_mgm3  = anom_mgm3,
-        n_pixels       = n_pixels,
+        n_pixels       = NA_integer_,   # bbox-aggregated; pixel count not applicable
         cobertura_pct  = cob_pct,
         prod_flag      = prod_flag
       )
@@ -139,14 +129,17 @@ run_skill <- function(data, geometry_local = NULL, geometry_regional = NULL, ...
 
     attr(annual, "chl_baseline") <- round(chl_baseline, 4)
     annual
-  })
+  }
+
+  results <- list(.process_scale(data_local, "local"))
+  if (!is.null(data_regional)) {
+    results <- c(results, list(.process_scale(data_regional, "regional")))
+  }
 
   value <- do.call(rbind, results)
   rownames(value) <- NULL
 
   # ── Interpretation ────────────────────────────────────────────────────────
-  # Uses local-scale annual geometric means; before = 2003-2013 (first MODIS decade).
-  # Status = ambiguous: Chl-a direction alone is not an ecological signal.
 
   local_chl <- value[value$escala == "local" & !is.na(value$chl_geomean), ]
 
@@ -197,7 +190,9 @@ run_skill <- function(data, geometry_local = NULL, geometry_regional = NULL, ...
     method = paste0(
       "Annual geometric mean chl-a (log10 space averaging, back-transformed) ",
       "and log10 anomaly vs baseline geometric mean (", .BASELINE_START, "-",
-      .BASELINE_END, "), clipped to AMP polygon (local) and LME polygon (regional). ",
+      .BASELINE_END, "), pre-aggregated spatially by ERDDAP MCP (aggregate_spatial=TRUE). ",
+      "Local scale: AMP bbox [-110.5,-108.5,22.5,24.5]. ",
+      "Regional scale: Gulf of California bbox [-117.5,-106.0,22.0,32.0]. ",
       "Years with cobertura_pct < ", .COVERAGE_THRESHOLD, "% returned as NA. ",
       "Dataset: erdMH1chla8day_R202SQ, NOAA CoastWatch ERDDAP."
     ),
@@ -207,11 +202,12 @@ run_skill <- function(data, geometry_local = NULL, geometry_regional = NULL, ...
       baseline_period        = paste0(.BASELINE_START, "-", .BASELINE_END),
       high_prod_threshold    = .HIGH_PROD_THRESHOLD,
       low_prod_threshold     = .LOW_PROD_THRESHOLD,
-      averaging_method       = "geometric mean (log10 space)"
+      averaging_method       = "geometric mean (log10 space)",
+      spatial_method         = "bbox_aggregate (aggregate_spatial=TRUE)"
     ),
     geometry_source = list(
-      local    = attr(geometry_local,    "geometry_source"),
-      regional = attr(geometry_regional, "geometry_source")
+      local    = if (!is.null(geometry_local))    attr(geometry_local,    "geometry_source") else "bbox_aggregate",
+      regional = if (!is.null(geometry_regional)) attr(geometry_regional, "geometry_source") else "bbox_aggregate"
     )
   )
 }

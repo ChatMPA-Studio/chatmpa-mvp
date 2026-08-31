@@ -26,39 +26,47 @@ inputs:
       default (adecuado para AMPs del Golfo y Pacífico central mexicano).
       Obtenido vía get_lme_geometry(lme) de shared/spatial_join/spatial_join.R.
 acquire:
-  # El orquestador llama al MCP de ERDDAP (dos calls: sst y anom) y los manda
-  # en el body fusionados. Dataset: ncdcOisst21Agg_LonPM180 (OISST v2.1, 0.25°).
+  # Dos calls al MCP de ERDDAP: una por escala (local=AMP, regional=LME).
+  # aggregate_spatial=true colapsa lat/lon → 1 fila/día → ~16 000 filas total.
+  # sst_vars=["sst","anom"] devuelve ambas variables en una sola call.
+  # Dataset: ncdcOisst21Agg_LonPM180 (OISST v2.1, 0.25°, diario desde 1981).
   - source: payload
-    as: data
+    as: data_local
     provider:
       server: erddap
       tool: get_data
       args:
         variable: sst
-        sst_var: sst
-        # Demo: bbox del Golfo de California — cubre Cabo Pulmo (local) y el
-        # LME Golfo de California (regional). ~7× más chico que pacific_mexico
-        # en píxeles OISST. Producción: derivar bbox del LME de la consulta.
-        # ⚠️  SST no está en el Zarr local — se consulta LIVE a ERDDAP.
-        # pacific_mexico + 44 años diario ≈ 74M valores (SST) → timeout.
-        # Con Golfo de California ≈ 1,840 píxeles × 16 000 días ≈ 30M valores.
-        # Engineering: implementar pre-aggregación anual en el MCP (issue #22).
-        bbox: [-117.5, -106.0, 22.0, 32.0]
+        sst_vars: [sst, anom]
+        # Bbox local: Cabo Pulmo (2°×2°, ~64 píxeles OISST). Demo MVP hardcoded.
+        # Producción: derivar del polígono del AMP vía amp_geometry_lookup.csv.
+        bbox: [-110.5, -108.5, 22.5, 24.5]
         date_range: ["1982-01-01", "2025-12-31"]
-    # NOTA: mcp__erddap__get_data devuelve array 3D {values[time][lat][lon],
-    # times, lat, lon}. El orquestador debe hacer DOS calls (sst_var="sst" y
-    # sst_var="anom") y fusionar los resultados en un data.frame(lat, lon,
-    # time, sst, anom) antes de inyectarlo como payload.
+        aggregate_spatial: true
+    # Formato: columnar {time:[...], sst:[...], anom:[...]} — 1 fila/día.
     columns:
-      - lat
-      - lon
       - time
       - sst
       - anom
-  # geometry_local y geometry_regional NO vienen del orquestador.
-  # skill.R las obtiene internamente:
-  #   geometry_local    <- get_amp_geometry(mpa)      # shared/spatial_join/spatial_join.R
-  #   geometry_regional <- get_lme_geometry(lme_name) # ídem, cached en shared/geometries/lme/
+  - source: payload
+    as: data_regional
+    provider:
+      server: erddap
+      tool: get_data
+      args:
+        variable: sst
+        sst_vars: [sst, anom]
+        # Bbox regional: Golfo de California. Demo MVP hardcoded.
+        # Producción: derivar del polígono del LME vía get_lme_geometry().
+        bbox: [-117.5, -106.0, 22.0, 32.0]
+        date_range: ["1982-01-01", "2025-12-31"]
+        aggregate_spatial: true
+    columns:
+      - time
+      - sst
+      - anom
+  # geometry_local/regional se resuelven en skill.R solo para geometry_source
+  # en metadata. El recorte espacial lo hace el bbox de cada call al MCP.
 output:
   table: sst_annual
   columns: [year, escala, sst_media, anomalia_media, n_pixels, cobertura_pct, stress_flag]

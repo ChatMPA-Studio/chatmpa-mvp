@@ -38,49 +38,37 @@ if (!exists("before_after", mode = "function")) {
 #   value columns: year (int), kpi_mhw_days_per_yr (int), n_events_per_yr (int),
 #                  mean_intensity_per_yr (num, °C above threshold)
 
-run_skill <- function(data, geometry_local = NULL, ...) {
+run_skill <- function(data, ...) {
 
   if (!requireNamespace("heatwaveR", quietly = TRUE)) {
     stop("Package 'heatwaveR' required. Install with: install.packages('heatwaveR')")
   }
 
-  # ── Resolve geometry_local from mpa if not passed directly ────────────────
-  if (is.null(geometry_local)) {
-    args <- list(...)
-    mpa  <- args$mpa
-    if (is.null(mpa) || !nzchar(mpa))
-      stop("'geometry_local' (sf) not provided and 'mpa' input is missing — cannot resolve AMP polygon.")
-    geometry_local <- get_amp_geometry(mpa)
-  }
+  # ── Resolve geometry for metadata (geometry_source only, no spatial clip) ──
+  args <- list(...)
+  mpa  <- args$mpa
+  geometry_local <- if (!is.null(mpa) && nzchar(mpa)) {
+    tryCatch(get_amp_geometry(mpa), error = function(e) NULL)
+  } else NULL
 
   # ── Input validation ───────────────────────────────────────────────────────
 
-  required_cols <- c("lat", "lon", "time", "sst")
+  # data is pre-aggregated from MCP (aggregate_spatial=TRUE):
+  # columns: time (chr/Date), sst (num) — one row per day, spatial mean over bbox
+  required_cols <- c("time", "sst")
   missing_cols  <- setdiff(required_cols, names(data))
   if (length(missing_cols) > 0) {
     stop("Missing columns in data: ", paste(missing_cols, collapse = ", "),
-         "\nExpected: ", paste(required_cols, collapse = ", "))
-  }
-  if (!inherits(geometry_local, "sf")) stop("geometry_local must be an sf object")
-
-  # ── Step 1: Spatial aggregation ───────────────────────────────────────────
-  # Clip to AMP polygon, then compute daily mean SST across valid pixels.
-
-  data_clip <- clip_to_geometry(data, geometry_local)
-  n_pixels  <- length(unique(paste(data_clip$lat, data_clip$lon)))
-
-  if (n_pixels < .MIN_PIXELS_WARN) {
-    warning("n_pixels = ", n_pixels, " for local scale — OISST resolution (0.25°) ",
-            "may be too coarse for this AMP polygon.")
+         "\nExpected: ", paste(required_cols, collapse = ", "),
+         " (aggregate_spatial=TRUE response from ERDDAP MCP)")
   }
 
-  data_clip$t <- as.Date(data_clip$time)
-  data_clip   <- data_clip[!is.na(data_clip$sst), ]
+  # ── Step 1: Build daily time series ──────────────────────────────────────
+  # data is already a spatial mean — no clip_to_geometry needed.
 
-  # One row per day: mean SST across all valid pixels inside the polygon
-  ts_daily <- aggregate(sst ~ t, data = data_clip, FUN = mean, na.rm = TRUE)
+  ts_daily <- data.frame(t = as.Date(data$time), temp = data$sst)
+  ts_daily <- ts_daily[!is.na(ts_daily$temp), ]
   ts_daily <- ts_daily[order(ts_daily$t), ]
-  names(ts_daily)[names(ts_daily) == "sst"] <- "temp"
 
   # Verify baseline coverage
   baseline_start <- as.Date(.CLIM_PERIOD[1])
@@ -198,7 +186,7 @@ run_skill <- function(data, geometry_local = NULL, ...) {
     interpretation = interpretation,
     method = paste0(
       "Marine Heatwave detection via heatwaveR (Hobday et al. 2016). ",
-      "Step 1: spatial mean SST across AMP polygon (OISST 0.25°, daily). ",
+      "Step 1: daily SST time series from ERDDAP MCP (aggregate_spatial=TRUE, bbox mean). ",
       "Step 2: ts2clm climatology, baseline ", .CLIM_PERIOD[1],
       " to ", .CLIM_PERIOD[2], ", threshold = ", .PCTILE, "th percentile. ",
       "Step 3: detect_event with minDuration = ", .MIN_DURATION,
@@ -214,7 +202,7 @@ run_skill <- function(data, geometry_local = NULL, ...) {
       min_pixels_warn    = .MIN_PIXELS_WARN
     ),
     geometry_source = list(
-      local = attr(geometry_local, "geometry_source")
+      local = if (!is.null(geometry_local)) attr(geometry_local, "geometry_source") else "bbox_aggregate"
     )
   )
 }

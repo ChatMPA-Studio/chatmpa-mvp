@@ -1,12 +1,18 @@
 # skill.R — erddap-sst-anomaly
 #
-# Computes annual SST means and anomalies at local (AMP polygon) and regional
-# (LME polygon) scales from OISST v2.1 daily data (NOAA CoastWatch ERDDAP).
+# Computes annual SST means and anomalies at local (AMP bbox) and regional
+# (LME bbox) scales from OISST v2.1 daily data (NOAA CoastWatch ERDDAP).
+#
+# Data arrives pre-aggregated (aggregate_spatial=TRUE from ERDDAP MCP):
+#   data_local    — {time, sst, anom} daily series for the AMP bbox
+#   data_regional — {time, sst, anom} daily series for the LME bbox
+# No clip_to_geometry needed; the bbox IS the spatial filter.
 #
 # See SKILL.md for the full data contract and method specification.
 #
 # Dependencies:
-#   shared/spatial_join/spatial_join.R  — clip_to_geometry()
+#   shared/spatial_join/spatial_join.R  — get_amp_geometry(), get_lme_geometry()
+#                                         (used for geometry_source metadata only)
 
 source(file.path(dirname(sys.frame(1)$ofile),
                  "../../shared/spatial_join/spatial_join.R"))
@@ -18,89 +24,69 @@ if (!exists("before_after", mode = "function")) {
 
 # ── Constants (fixed — do not change without updating SKILL.md) ──────────────
 
-.COVERAGE_THRESHOLD <- 50   # % of valid pixel-days below which year = NA
+.COVERAGE_THRESHOLD <- 50   # % of valid daily values below which year = NA
 .STRESS_THRESHOLD   <- 0.5  # anomaly (°C) above which year is flagged as stressful
-.MIN_PIXELS_WARN    <- 4    # n_pixels below which a warning is issued (coarse OISST grid)
 
 # ── run_skill ────────────────────────────────────────────────────────────────
 #
 # Args:
-#   data              data.frame — minimal contract from ERDDAP MCP:
-#                     columns: lat (num), lon (num), time (Date), sst (num), anom (num)
-#   geometry_local    sf object  — AMP polygon, from get_amp_geometry()
-#   geometry_regional sf object  — LME polygon, from get_lme_geometry()
+#   data_local    data.frame — aggregate_spatial=TRUE from ERDDAP MCP (AMP bbox):
+#                 columns: time (chr/Date), sst (num °C), anom (num °C)
+#   data_regional data.frame — same format, for the LME bbox (optional)
 #
 # Returns: list(value, method, params, geometry_source)
 
-run_skill <- function(data, geometry_local = NULL, geometry_regional = NULL, ...) {
+run_skill <- function(data_local, data_regional = NULL, ...) {
 
-  # ── Resolve geometries from mpa / lme inputs if not passed directly ────────
+  # ── Geometry resolution (metadata only, no spatial clip) ──────────────────
   args <- list(...)
-  if (is.null(geometry_local)) {
-    mpa <- args$mpa
-    if (is.null(mpa) || !nzchar(mpa))
-      stop("'geometry_local' (sf) not provided and 'mpa' input is missing — cannot resolve AMP polygon.")
-    geometry_local <- get_amp_geometry(mpa)
-  }
-  if (is.null(geometry_regional)) {
-    lme_name <- if (!is.null(args$lme) && nzchar(args$lme)) args$lme else "Gulf of California"
-    geometry_regional <- get_lme_geometry(lme_name)
-  }
+  mpa      <- args$mpa
+  lme_name <- if (!is.null(args$lme) && nzchar(args$lme)) args$lme else "Gulf of California"
+
+  geometry_local <- if (!is.null(mpa) && nzchar(mpa)) {
+    tryCatch(get_amp_geometry(mpa), error = function(e) NULL)
+  } else NULL
+
+  geometry_regional <- tryCatch(get_lme_geometry(lme_name), error = function(e) NULL)
 
   # ── Input validation ───────────────────────────────────────────────────────
 
-  required_cols <- c("lat", "lon", "time", "sst", "anom")
-  missing_cols  <- setdiff(required_cols, names(data))
-  if (length(missing_cols) > 0) {
-    stop("Missing columns in data: ", paste(missing_cols, collapse = ", "),
-         "\nExpected: ", paste(required_cols, collapse = ", "))
-  }
-  if (!inherits(geometry_local,    "sf")) stop("geometry_local must be an sf object")
-  if (!inherits(geometry_regional, "sf")) stop("geometry_regional must be an sf object")
-
-  # ── Clip to each scale ────────────────────────────────────────────────────
-
-  scales <- list(
-    local    = geometry_local,
-    regional = geometry_regional
-  )
-
-  results <- lapply(names(scales), function(escala) {
-    geom      <- scales[[escala]]
-    data_clip <- clip_to_geometry(data, geom)
-    coverage  <- attr(data_clip, "cobertura_pct")
-    n_pixels  <- length(unique(paste(data_clip$lat, data_clip$lon)))
-
-    if (n_pixels < .MIN_PIXELS_WARN && escala == "local") {
-      warning("n_pixels = ", n_pixels, " for local scale — OISST resolution (0.25°) ",
-              "may be too coarse for this AMP polygon.")
+  required_cols <- c("time", "sst", "anom")
+  for (nm in c("data_local", "data_regional")) {
+    df <- get(nm)
+    if (is.null(df)) next
+    missing_cols <- setdiff(required_cols, names(df))
+    if (length(missing_cols) > 0) {
+      stop(nm, " missing columns: ", paste(missing_cols, collapse = ", "),
+           "\nExpected: ", paste(required_cols, collapse = ", "),
+           " (aggregate_spatial=TRUE response from ERDDAP MCP)")
     }
+  }
 
-    # ── Annual aggregation ─────────────────────────────────────────────────
+  # ── Per-scale annual aggregation ──────────────────────────────────────────
 
-    data_clip$year <- as.integer(format(as.Date(data_clip$time), "%Y"))
-    data_valid     <- data_clip[!is.na(data_clip$sst) & !is.na(data_clip$anom), ]
-    years          <- sort(unique(data_clip$year))
+  .process_scale <- function(df, escala) {
+    data_valid        <- df[!is.na(df$sst) & !is.na(df$anom), ]
+    data_valid$year   <- as.integer(format(as.Date(data_valid$time), "%Y"))
+    years             <- sort(unique(data_valid$year))
+    expected_per_year <- 365L  # daily OISST; one value per day after bbox aggregation
 
-    # Expected pixel-days per year: n_pixels × 365 (approximate)
-    expected_per_year <- n_pixels * 365
-
-    annual <- do.call(rbind, lapply(years, function(yr) {
-      yr_data      <- data_valid[data_valid$year == yr, ]
-      n_valid      <- nrow(yr_data)
-      cob_pct      <- round(n_valid / expected_per_year * 100, 1)
+    do.call(rbind, lapply(years, function(yr) {
+      yr_data <- data_valid[data_valid$year == yr, ]
+      n_valid <- nrow(yr_data)
+      cob_pct <- round(n_valid / expected_per_year * 100, 1)
 
       if (cob_pct < .COVERAGE_THRESHOLD) {
         warning("Year ", yr, " (", escala, "): cobertura_pct = ", cob_pct,
                 "% < ", .COVERAGE_THRESHOLD, "% — returning NA.")
         return(data.frame(
-          year             = yr,
-          escala           = escala,
-          sst_media        = NA_real_,
-          anomalia_media   = NA_real_,
-          n_pixels         = n_pixels,
-          cobertura_pct    = cob_pct,
-          stress_flag      = NA
+          year           = yr,
+          escala         = escala,
+          sst_media      = NA_real_,
+          anomalia_media = NA_real_,
+          n_pixels       = NA_integer_,
+          cobertura_pct  = cob_pct,
+          stress_flag    = NA
         ))
       }
 
@@ -112,20 +98,22 @@ run_skill <- function(data, geometry_local = NULL, geometry_regional = NULL, ...
         escala         = escala,
         sst_media      = round(sst_med,  3),
         anomalia_media = round(anom_med, 3),
-        n_pixels       = n_pixels,
+        n_pixels       = NA_integer_,   # bbox-aggregated; pixel count not applicable
         cobertura_pct  = cob_pct,
         stress_flag    = anom_med > .STRESS_THRESHOLD
       )
     }))
+  }
 
-    annual
-  })
+  results <- list(.process_scale(data_local, "local"))
+  if (!is.null(data_regional)) {
+    results <- c(results, list(.process_scale(data_regional, "regional")))
+  }
 
   value <- do.call(rbind, results)
   rownames(value) <- NULL
 
   # ── Interpretation ────────────────────────────────────────────────────────
-  # Uses local-scale annual means; before = 1982-2000 pre-warming baseline.
 
   local_val <- value[value$escala == "local" & !is.na(value$sst_media), ]
 
@@ -185,8 +173,10 @@ run_skill <- function(data, geometry_local = NULL, geometry_regional = NULL, ...
   list(
     value  = value,
     method = paste0(
-      "Annual mean SST and NOAA anomaly (1971-2000 baseline) per pixel-day, ",
-      "clipped to AMP polygon (local) and LME polygon (regional). ",
+      "Annual mean SST and NOAA anomaly (1971-2000 baseline) from OISST daily data, ",
+      "pre-aggregated spatially by ERDDAP MCP (aggregate_spatial=TRUE). ",
+      "Local scale: AMP bbox [-110.5,-108.5,22.5,24.5]. ",
+      "Regional scale: Gulf of California bbox [-117.5,-106.0,22.0,32.0]. ",
       "Years with cobertura_pct < ", .COVERAGE_THRESHOLD, "% returned as NA. ",
       "Dataset: ncdcOisst21Agg_LonPM180, NOAA CoastWatch ERDDAP."
     ),
@@ -195,11 +185,11 @@ run_skill <- function(data, geometry_local = NULL, geometry_regional = NULL, ...
       coverage_threshold_pct = .COVERAGE_THRESHOLD,
       stress_threshold_c     = .STRESS_THRESHOLD,
       anomaly_baseline       = "NOAA 1971-2000 (embedded in OISST anom variable)",
-      min_pixels_warn        = .MIN_PIXELS_WARN
+      spatial_method         = "bbox_aggregate (aggregate_spatial=TRUE)"
     ),
     geometry_source = list(
-      local    = attr(geometry_local,    "geometry_source"),
-      regional = attr(geometry_regional, "geometry_source")
+      local    = if (!is.null(geometry_local))    attr(geometry_local,    "geometry_source") else "bbox_aggregate",
+      regional = if (!is.null(geometry_regional)) attr(geometry_regional, "geometry_source") else "bbox_aggregate"
     )
   )
 }

@@ -31,25 +31,21 @@ acquire:
       args:
         variable: sst
         sst_var: sst
-        # Demo: bbox fijo alrededor de Cabo Pulmo (8×8 píxeles OISST 0.25°).
-        # Producción: el orquestador debe derivar bbox del polígono del AMP via
-        #   amp_geometry_lookup.csv → bbox = st_bbox(geometry_local) + buffer.
+        # Demo: bbox fijo alrededor de Cabo Pulmo (2°×2°, ~64 píxeles OISST 0.25°).
+        # Producción: derivar bbox del polígono del AMP vía amp_geometry_lookup.csv.
         bbox: [-110.5, -108.5, 22.5, 24.5]
         date_range: ["1982-01-01", "2025-12-31"]
-    # NOTA: mcp__erddap__get_data devuelve un array 3D {values[time][lat][lon],
-    # times, lat, lon} — NO filas tabulares. El orquestador debe aplanarlo a
-    # data.frame(lat, lon, time, sst) antes de inyectarlo como payload.
-    # SST no está en el Zarr local — se consulta LIVE a ERDDAP. El bbox pequeño
-    # es crítico para evitar timeouts. Con [-110.5,-108.5,22.5,24.5] la query
-    # devuelve ~64 píxeles × 44 años × 365 días ≈ 1M valores (~6 MB JSON).
+        # aggregate_spatial=true colapsa lat/lon → media espacial por día.
+        # Devuelve {time:[...], sst:[...]} — 1 fila por día (~16 000 filas).
+        # Elimina el límite de 500 000 puntos y permite date_range de 44 años.
+        aggregate_spatial: true
+    # Formato de respuesta: columnar {time, sst} — NO 3D array.
+    # El orquestador convierte a data.frame(time, sst) antes de inyectar.
     columns:
-      - lat
-      - lon
       - time
       - sst
-  # geometry_local NO viene del orquestador.
-  # skill.R la obtiene internamente:
-  #   geometry_local <- get_amp_geometry(mpa)  # shared/spatial_join/spatial_join.R
+  # geometry_local se resuelve internamente en skill.R solo para geometry_source.
+  # No se usa para clip espacial (el bbox ya es el recorte espacial).
 output:
   table: mhw_annual
   columns: [year, kpi_mhw_days_per_yr, n_events_per_yr, mean_intensity_per_yr]

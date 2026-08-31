@@ -25,36 +25,43 @@ inputs:
       "Gulf of California". Si se omite, skill.R usa "Gulf of California" por
       default. Obtenido vía get_lme_geometry(lme) de shared/spatial_join/spatial_join.R.
 acquire:
-  # El orquestador llama al MCP de ERDDAP y manda los datos en el body.
-  # Dataset: erdMH1chla8day_R202SQ (MODIS Aqua 8-day, 4 km).
+  # Dos calls al MCP de ERDDAP: una por escala (local=AMP, regional=LME).
+  # aggregate_spatial=true colapsa lat/lon → 1 fila por composite → ~1 012 filas.
+  # Clorofila está en Zarr local (pacific_mexico); el bbox recorta el Zarr.
+  # Dataset: erdMH1chla8day_R202SQ (MODIS Aqua 8-day, 4 km, 2003–presente).
   - source: payload
-    as: data
+    as: data_local
     provider:
       server: erddap
       tool: get_data
       args:
         variable: chlorophyll
-        # Demo: bbox del Golfo de California — cubre Cabo Pulmo (local) y el
-        # LME Golfo de California (regional). Clorofila está en Zarr local
-        # (pacific_mexico), así que el bbox recorta el Zarr antes de serializar.
-        # MODIS 4 km: Gulf of CA ≈ 78 000 píxeles × 46 composites × 22 años
-        # ≈ 79M valores → ~475 MB JSON. Engineering: implementar pre-aggregación
-        # anual en el MCP (issue #22) para reducir a ~78K valores (~5 MB JSON).
-        # Producción: derivar bbox del LME real para el AMP seleccionado.
-        bbox: [-117.5, -106.0, 22.0, 32.0]
+        # Bbox local: Cabo Pulmo (2°×2°, ~2 916 píxeles MODIS 4km). Demo MVP.
+        # Producción: derivar del polígono del AMP vía amp_geometry_lookup.csv.
+        bbox: [-110.5, -108.5, 22.5, 24.5]
         date_range: ["2003-01-01", "2025-12-31"]
-    # NOTA: mcp__erddap__get_data devuelve array 3D {values[time][lat][lon],
-    # times, lat, lon} — NO filas tabulares. El orquestador debe aplanarlo a
-    # data.frame(lat, lon, time, chlorophyll) antes de inyectarlo como payload.
+        aggregate_spatial: true
+    # Formato: columnar {time:[...], chlorophyll:[...]} — 1 fila/composite.
     columns:
-      - lat
-      - lon
       - time
       - chlorophyll
-  # geometry_local y geometry_regional NO vienen del orquestador.
-  # skill.R las obtiene internamente:
-  #   geometry_local    <- get_amp_geometry(mpa)      # shared/spatial_join/spatial_join.R
-  #   geometry_regional <- get_lme_geometry(lme_name) # ídem, cached en shared/geometries/lme/
+  - source: payload
+    as: data_regional
+    provider:
+      server: erddap
+      tool: get_data
+      args:
+        variable: chlorophyll
+        # Bbox regional: Golfo de California. Demo MVP hardcoded.
+        # Producción: derivar del polígono del LME vía get_lme_geometry().
+        bbox: [-117.5, -106.0, 22.0, 32.0]
+        date_range: ["2003-01-01", "2025-12-31"]
+        aggregate_spatial: true
+    columns:
+      - time
+      - chlorophyll
+  # geometry_local/regional se resuelven en skill.R solo para geometry_source
+  # en metadata. El recorte espacial lo hace el bbox de cada call al MCP.
 output:
   table: chl_annual
   columns: [year, escala, chl_geomean, anomalia_log10, anomalia_mgm3, n_pixels, cobertura_pct, prod_flag]
