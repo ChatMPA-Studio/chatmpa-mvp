@@ -170,7 +170,7 @@ run_skill <- function(data,
   # declining CPUE may reflect overfishing, stock depletion, or reduced effort.
 
   .cpue_interp <- function(fleet_label, fleet_label_es, aviso) {
-    fleet_df <- value[value$escala == "regional" & value$tipo_aviso == aviso, ]
+    fleet_df <- value[value$tipo_aviso == aviso, ]
     fleet_df <- fleet_df[order(fleet_df$anio_corte), ]
     # Rename so before_after uses standard "year" column
     fleet_df$year <- fleet_df$anio_corte
