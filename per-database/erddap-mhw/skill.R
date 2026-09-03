@@ -24,7 +24,7 @@ if (!exists("before_after", mode = "function")) {
 .PCTILE          <- 90L                             # MHW threshold: 90th percentile
 .MIN_DURATION    <- 5L                              # min consecutive days above threshold
 .JOIN_GAPS       <- TRUE                            # merge events separated by ≤ 2 days
-.MIN_BASELINE_YRS <- 20L                            # minimum years for reliable climatology
+.MIN_BASELINE_YRS <- 30L                            # minimum years for reliable climatology
 .MIN_PIXELS_WARN  <- 4L                             # warn if fewer pixels than this
 
 # ── run_skill ────────────────────────────────────────────────────────────────
