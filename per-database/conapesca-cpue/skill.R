@@ -153,11 +153,16 @@ run_skill <- function(data,
               ": n_viajes=", n_viajes, " < ", .MIN_TRIPS_WARN,
               " — CPUE mean unreliable.")
 
+    mask_base <- rep(TRUE, nrow(folios_base))
+    for (col in group_cols)
+      mask_base <- mask_base & (folios_base[[col]] == combos[[col]][i])
+    n_excluidos_combo <- nrow(folios_base[mask_base, ]) - nrow(sub)
+
     row <- as.data.frame(combos[i, , drop = FALSE], stringsAsFactors = FALSE)
     row$cpue_media                 <- round(mean(sub$cpue_folio), 4)
     row$cpue_sd                    <- round(sd(sub$cpue_folio), 4)
     row$n_viajes                   <- n_viajes
-    row$n_viajes_excluidos         <- n_excluidos
+    row$n_viajes_excluidos         <- n_excluidos_combo
     row$peso_desembarcado_kg_total <- sum(sub$peso_desembarcado_kg)
     row$n_viajes_recomputado       <- n_recomp
     row
