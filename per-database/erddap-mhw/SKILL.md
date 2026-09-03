@@ -31,14 +31,18 @@ acquire:
       args:
         variable: sst
         sst_var: sst
-        # Demo: bbox fijo alrededor de Cabo Pulmo (2°×2°, ~64 píxeles OISST 0.25°).
-        # Producción: derivar bbox del polígono del AMP vía amp_geometry_lookup.csv.
-        bbox: [-110.5, -108.5, 22.5, 24.5]
-        date_range: ["1982-01-01", "2025-12-31"]
         # aggregate_spatial=true colapsa lat/lon → media espacial por día.
         # Devuelve {time:[...], sst:[...]} — 1 fila por día (~16 000 filas).
         # Elimina el límite de 500 000 puntos y permite date_range de 44 años.
         aggregate_spatial: true
+      params:
+        # bbox se deriva del polígono del AMP en amp_geometry_lookup.csv.
+        # El orquestador lo resuelve en service.py usando get_amp_geometry().
+        bbox: <derived from AMP polygon at request time>
+        # date_range: inicio fijo 1982-01-01 (lanzamiento OISST v2.1).
+        # fin = fecha actual (rolling window — calculado en service.py al vuelo,
+        # no hardcodear: la serie necesita llegar hasta hoy para detectar MHWs recientes).
+        date_range: ["1982-01-01", "<today>"]
     # Formato de respuesta: columnar {time, sst} — NO 3D array.
     # El orquestador convierte a data.frame(time, sst) antes de inyectar.
     columns:
@@ -141,8 +145,8 @@ same event detection given fixed parameters.
   as MHWs under the Hobday definition.
 - Do NOT aggregate before Step 1 — the spatial averaging must be done on raw
   pixel-day data, not on annual means.
-- Do NOT report MHW metrics when the baseline period has < 20 years of data —
-  the climatology is unreliable.
+- Do NOT report MHW metrics when the baseline period has < 30 years of data —
+  the climatology is unreliable (WMO standard for climatological normals).
 
 ## Validation checklist
 - [ ] self-consistency: same input → same output across N runs.
