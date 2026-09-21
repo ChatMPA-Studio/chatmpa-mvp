@@ -67,12 +67,19 @@ if (!exists("before_after", mode = "function")) {
 # ── run_skill ─────────────────────────────────────────────────────────────────
 #
 # Args:
-#   data      data.frame — reef-year biomass (time, reef, value, region)
-#   data_func data.frame — optional functional-group breakdown (Functional_groups, mean_biomass)
+#   data           data.frame — reef-year biomass (time, reef, value, region)
+#   data_behavioral data.frame — optional behavioral functional-group breakdown
+#                  (year, functional_name, mean_biomass) from behavioral_group_biomass
+#   data_family    data.frame — optional biomass by taxonomic family (year, family, mean_biomass)
+#   data_species   data.frame — optional biomass by species (species_id, species_name,
+#                  trophic_group, mean_biomass), sortable for top-N
+#   data_func      data.frame — DEPRECATED legacy breakdown (Functional_groups, mean_biomass);
+#                  used as fallback only when data_behavioral is absent
 #
 # Returns: list(value, method, params)
 
-run_skill <- function(data, data_func = NULL, ...) {
+run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
+                      data_species = NULL, data_func = NULL, ...) {
 
   if (!requireNamespace("mgcv", quietly = TRUE))
     stop("Package 'mgcv' is required.")
@@ -145,10 +152,35 @@ run_skill <- function(data, data_func = NULL, ...) {
     )
   }
 
-  # ── Step 4: Functional group breakdown (optional) ─────────────────────────
+  # ── Step 4: Behavioral functional-group breakdown (optional) ──────────────
+  # Feeds the TrophicYear card: one row per year × behavioral group, in T/ha.
+  # Maps functional_name -> Spanish label. Falls back to the legacy data_func
+  # (functional_group_biomass) only when data_behavioral is absent.
+
+  .FN_LABELS <- c(
+    GenPred_solitary  = "Depredadores solitarios",
+    GenPred_schooling = "Depredadores en cardúmenes",
+    EpiBent_schooling = "Omnívoros en cardumen",
+    Crip_schooling    = "Herbívoros en cardumen",
+    Crip_solitary     = "Crípticos solitarios",
+    Plank             = "Planctívoros"
+  )
 
   func_out <- NULL
-  if (!is.null(data_func)) {
+  if (!is.null(data_behavioral)) {
+    req_b <- c("functional_name", "mean_biomass")
+    if (!all(req_b %in% names(data_behavioral))) {
+      warning("data_behavioral missing required columns (functional_name, mean_biomass) — ",
+              "behavioral breakdown skipped.")
+    } else {
+      fb <- data_behavioral
+      fb$functional_group <- ifelse(fb$functional_name %in% names(.FN_LABELS),
+                                    .FN_LABELS[fb$functional_name], fb$functional_name)
+      fb$biomass_t_ha <- round(fb$mean_biomass * 0.01, 4)
+      keep_b <- intersect(c("year", "functional_group", "biomass_t_ha"), names(fb))
+      func_out <- fb[, keep_b, drop = FALSE]
+    }
+  } else if (!is.null(data_func)) {
     req_func <- c("Functional_groups", "mean_biomass")
     if (!all(req_func %in% names(data_func))) {
       warning("data_func missing required columns (Functional_groups, mean_biomass) — ",
@@ -158,6 +190,21 @@ run_skill <- function(data, data_func = NULL, ...) {
       names(func_out) <- c("functional_group", "biomass_t_ha")
       func_out$biomass_t_ha <- round(func_out$biomass_t_ha * 0.01, 4)
     }
+  }
+
+  # ── Step 4b: Family & species biomass pass-through (optional) ──────────────
+  # Feed GET /species/family-biomass and GET /biomass/top-species. Unit kept as
+  # g/m² from the MCP; caller decides display unit, top-N and family filter.
+  family_out <- NULL
+  if (!is.null(data_family) && all(c("family", "mean_biomass") %in% names(data_family))) {
+    keep_f <- intersect(c("year", "family", "mean_biomass", "n_transects"), names(data_family))
+    family_out <- data_family[, keep_f, drop = FALSE]
+  }
+  species_out <- NULL
+  if (!is.null(data_species) && all(c("species_name", "mean_biomass") %in% names(data_species))) {
+    keep_s <- intersect(c("species_id", "species_name", "trophic_group", "mean_biomass", "n_transects"),
+                        names(data_species))
+    species_out <- data_species[, keep_s, drop = FALSE]
   }
 
   # ── Interpretation ────────────────────────────────────────────────────────
@@ -215,7 +262,9 @@ run_skill <- function(data, data_func = NULL, ...) {
       kpi               = kpi,
       trend             = trend,
       annual_means      = annual_means,
-      functional_groups = func_out
+      functional_groups = func_out,
+      family_biomass    = family_out,
+      species_biomass   = species_out
     ),
     interpretation = interpretation,
     method = paste0(
@@ -225,8 +274,9 @@ run_skill <- function(data, data_func = NULL, ...) {
       "family = gaussian(), method = REML. ",
       "Prediction excludes reef random effect (population-level trend). ",
       "95% CI: fit ± 1.96 × se.fit over ", .GRID_POINTS, "-point year grid. ",
-      "MCP pre-processing: Carangidae excluded, size outliers removed, ",
-      "consistent site filter (>= 5 years), aggregation: transect SUM -> reef MEAN."
+      "MCP pre-processing: label = PEC, biomass not null; ",
+      "analysis filters (Carangidae/Corredor/outliers) are NOT applied by the MCP. ",
+      "Consistent site filter (>= 5 years), aggregation: transect SUM -> reef MEAN."
     ),
     params = list(
       k_max        = .K_MAX,
