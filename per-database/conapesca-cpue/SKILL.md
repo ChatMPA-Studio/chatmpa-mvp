@@ -33,11 +33,17 @@ inputs:
       Nunca va sin `state_filter`: los nombres de oficina no son únicos entre
       estados (EL ROSARIO existe en Baja California y en Sinaloa).
 acquire:
-  # El MCP de CONAPESCA ya devuelve este contrato completo y sin tope de filas
-  # vía get_landings(group_by="folio"), así que el orquestador trae la tabla y
-  # la manda en el body. No hay razón para que el servicio la baje de nuevo.
   - source: payload
     as: data
+    provider:
+      server: conapesca
+      tool: get_landings
+      args:
+        group_by: folio
+      params:
+        especie: nombre_cientifico_canonico
+        estado: nombre_estado
+        oficina: nombre_oficina
     columns:
       - folio_aviso
       - anio_corte

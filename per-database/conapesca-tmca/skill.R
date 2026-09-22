@@ -47,9 +47,9 @@
 #                              "COSECHA", or NULL (all fleets).
 #   office_filter              character or NULL — label only.
 #   state_filter               character or NULL — label only.
-#   nombre_principal           character or NULL — label only.
-#   nombre_cientifico_canonico character or NULL — label only.
-#                              Mutually exclusive with nombre_principal.
+#   resource_group             character or NULL — label only (nombre_principal).
+#   species                    character or NULL — label only (nombre_cientifico_canonico).
+#                              Mutually exclusive with resource_group.
 #
 # Returns: list(tmca, category, value, method, params)
 #   tmca     — numeric: TMCA in % (rounded to 2 decimal places)
@@ -58,12 +58,12 @@
 #   value    — data.frame with annual series used for computation
 
 run_skill <- function(data,
-                      window                     = .DEFAULT_WINDOW,
-                      fleet_filter               = NULL,
-                      office_filter              = NULL,
-                      state_filter               = NULL,
-                      nombre_principal           = NULL,
-                      nombre_cientifico_canonico = NULL,
+                      window         = .DEFAULT_WINDOW,
+                      fleet_filter   = NULL,
+                      office_filter  = NULL,
+                      state_filter   = NULL,
+                      resource_group = NULL,
+                      species        = NULL,
                       ...) {
 
   # ── Input validation ───────────────────────────────────────────────────────
@@ -75,8 +75,8 @@ run_skill <- function(data,
   if (length(missing_cols) > 0)
     stop("Missing columns in data: ", paste(missing_cols, collapse = ", "))
 
-  if (!is.null(nombre_principal) && !is.null(nombre_cientifico_canonico))
-    stop("'nombre_principal' and 'nombre_cientifico_canonico' are mutually exclusive.")
+  if (!is.null(resource_group) && !is.null(species))
+    stop("'resource_group' and 'species' are mutually exclusive.")
 
   window <- as.integer(window)
   if (is.na(window) || window < 2L)
@@ -171,10 +171,10 @@ run_skill <- function(data,
       yr_end                     = yr_end,
       n_years                    = n,
       fleet_filter               = fleet_filter,
-      office_filter              = office_filter,
-      state_filter               = state_filter,
-      nombre_principal           = nombre_principal,
-      nombre_cientifico_canonico = nombre_cientifico_canonico
+      office_filter  = office_filter,
+      state_filter   = state_filter,
+      resource_group = resource_group,
+      species        = species
     )
   )
 }

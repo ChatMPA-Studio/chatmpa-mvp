@@ -9,7 +9,8 @@
 #
 # Data contract:
 #   data — pre-aggregated from get_landings(group_by="year_fleet").
-#          MCP handles all filtering (office, state, species, year_range).
+#          MCP handles all filtering (office, state, species). Always aggregates
+#          the full available period — no year input.
 #
 # See SKILL.md for the full data contract, method, and do-not rules.
 
@@ -32,17 +33,17 @@
 #                              total_kg, total_valor_mxn, n_registros.
 #   office_filter              character or NULL — label only.
 #   state_filter               character or NULL — label only.
-#   nombre_principal           character or NULL — label only.
-#   nombre_cientifico_canonico character or NULL — label only.
-#                              Mutually exclusive with nombre_principal.
+#   resource_group             character or NULL — label only (nombre_principal).
+#   species                    character or NULL — label only (nombre_cientifico_canonico).
+#                              Mutually exclusive with resource_group.
 #
 # Returns: list(value, plot_volumen, plot_valor, method, params)
 
 run_skill <- function(data,
-                      office_filter              = NULL,
-                      state_filter               = NULL,
-                      nombre_principal           = NULL,
-                      nombre_cientifico_canonico = NULL,
+                      office_filter  = NULL,
+                      state_filter   = NULL,
+                      resource_group = NULL,
+                      species        = NULL,
                       ...) {
 
   # ── Input validation ───────────────────────────────────────────────────────
@@ -55,8 +56,8 @@ run_skill <- function(data,
   if (length(missing_cols) > 0)
     stop("Missing columns in data: ", paste(missing_cols, collapse = ", "))
 
-  if (!is.null(nombre_principal) && !is.null(nombre_cientifico_canonico))
-    stop("'nombre_principal' and 'nombre_cientifico_canonico' are mutually exclusive.")
+  if (!is.null(resource_group) && !is.null(species))
+    stop("'resource_group' and 'species' are mutually exclusive.")
 
   if (nrow(data) == 0)
     stop("No records found in data.")
@@ -94,10 +95,10 @@ run_skill <- function(data,
 
   # ── Step 3: Plots ──────────────────────────────────────────────────────────
 
-  filter_label <- if (!is.null(nombre_principal)) {
-    paste0("Resource: ", nombre_principal)
-  } else if (!is.null(nombre_cientifico_canonico)) {
-    paste0("Species: ", nombre_cientifico_canonico)
+  filter_label <- if (!is.null(resource_group)) {
+    paste0("Resource: ", resource_group)
+  } else if (!is.null(species)) {
+    paste0("Species: ", species)
   } else {
     "All resources"
   }
@@ -124,12 +125,12 @@ run_skill <- function(data,
       "Data pre-aggregated by MCP (get_landings group_by='year_fleet')."
     ),
     params = list(
-      office_filter              = office_filter,
-      state_filter               = state_filter,
-      nombre_principal           = nombre_principal,
-      nombre_cientifico_canonico = nombre_cientifico_canonico,
-      period                     = c(min(data_valid$anio_corte),
-                                     max(data_valid$anio_corte))
+      office_filter  = office_filter,
+      state_filter   = state_filter,
+      resource_group = resource_group,
+      species        = species,
+      period         = c(min(data_valid$anio_corte),
+                         max(data_valid$anio_corte))
     )
   )
 }
