@@ -1,6 +1,6 @@
 ---
 name: ltem-fish-biomass
-version: 0.1.0
+version: 0.2.0
 tier: 2
 description: >
   Assess fish standing stock and recovery trends at a marine protected area,
@@ -28,6 +28,10 @@ acquire:
       - value
     required: false
 output.table: annual_means
+output.scalars:
+  mk_p_value:         numeric    # Mann-Kendall two-sided p-value; NA if < 8 survey years
+  mk_slope_direction: character  # "positive" | "negative" | "none" | "insufficient_data"
+  mk_label:           character  # human-readable trend category (Spanish)
 # GAM con REML: determinista dado el ajuste. El KPI es media aritmética.
 comparable_value: [mean_biomass_g_m2, se_g_m2]
 reference: references/cabo_pulmo_biomass_reference.json
@@ -97,6 +101,23 @@ Arithmetic mean of `value` across all reefs, computed separately for each of
 the most recent 5 survey years, then averaged. This is the observed mean (not
 the GAM-smoothed value) and is reported with its SD.
 
+### Mann-Kendall trend label
+Applied to the **observed annual means** (not the GAM smooth). Uses
+`Kendall::MannKendall()` via `shared/interpretation/mk_trend()`. Kendall's τ
+direction is consistent with Sen's slope for a monotonic series.
+
+**Minimum data requirement:** fewer than 8 unique survey years → skip test,
+return `mk_p_value = NA`, `mk_slope_direction = "insufficient_data"`,
+`mk_label = "Datos insuficientes para tendencia"`.
+
+**Classification (when n_years ≥ 8, threshold p < 0.05):**
+- τ > 0 and p < 0.05 → `"positive"` → `"Biomasa íctica en aumento"`
+- τ < 0 and p < 0.05 → `"negative"` → `"Biomasa íctica en declive"`
+- p ≥ 0.05           → `"none"`     → `"Biomasa íctica estable"`
+
+Note: the interpretation block uses p < 0.10 as a soft signal; the MK label
+output uses p < 0.05 (significant trend only).
+
 ## Random controls
 None. The GAM is deterministic given REML optimization.
 
@@ -121,6 +142,12 @@ None. The GAM is deterministic given REML optimization.
 - Do NOT fit the GAM with fewer than 5 unique survey years — return
   `"insufficient_data"`.
 - Do NOT impute missing reef-year combinations.
+- Do NOT run Mann-Kendall on the GAM smooth — run it on the observed annual
+  means. The smooth is for the trend plot; MK is the inferential test.
+- Do NOT run Mann-Kendall with fewer than 8 unique survey years — return
+  `"insufficient_data"` in all three MK fields.
+- Do NOT use p < 0.10 for the MK label — that threshold is for the
+  interpretation block only; the output label uses p < 0.05.
 
 ## Validation checklist
 - [ ] self-consistency: run twice on the same input → identical fit/lwr/upr.
@@ -136,3 +163,5 @@ A complete fish biomass analysis includes:
 - Observed annual means ± SE for overlaying on the trend plot.
 - Number of unique reefs and survey years used.
 - Functional-group breakdown for the most recent year (if secondary input provided).
+- Mann-Kendall scalars (`mk_p_value`, `mk_slope_direction`, `mk_label`) always
+  present in output, even when `"insufficient_data"` (< 8 survey years).

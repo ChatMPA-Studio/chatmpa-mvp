@@ -18,6 +18,7 @@ if (!exists("before_after", mode = "function")) {
 .KPI_YEARS    <- 5L    # number of most recent survey years for KPI mean
 .GAM_MIN_YEARS <- 5L   # minimum unique years to fit the GAM
 .GRID_POINTS  <- 200L  # prediction grid resolution over year range
+.MK_MIN_YEARS <- 8L    # minimum unique survey years to compute MK trend label
 
 # ── .gam_trend ────────────────────────────────────────────────────────────────
 # Internal helper: fit the GAM and return population-level predictions.
@@ -64,15 +65,68 @@ if (!exists("before_after", mode = "function")) {
   )
 }
 
+# ── .mk_label_output ─────────────────────────────────────────────────────────
+# Internal. Derives the three MK output scalars from an mk_trend() result and
+# the number of unique survey years in the series.
+#
+# Threshold for the label is p < 0.05 (two-sided), distinct from the
+# interpretation block which uses p < 0.10 as a softer signal.
+# Direction is inferred from the sign of Kendall's tau, which is consistent
+# with the Sen's slope direction for a monotonic series.
+#
+# Args:
+#   mkt     — return value of mk_trend(); list(tau, p, direction) or list(status)
+#   n_years — number of unique survey years in the full series
+#
+# Returns: list(mk_p_value, mk_slope_direction, mk_label)
+
+.mk_label_output <- function(mkt, n_years) {
+
+  if (n_years < .MK_MIN_YEARS || !is.null(mkt$status)) {
+    return(list(
+      mk_p_value         = NA_real_,
+      mk_slope_direction = "insufficient_data",
+      mk_label           = "Datos insuficientes para tendencia"
+    ))
+  }
+
+  direction <- if (mkt$p < 0.05) {
+    if (mkt$direction == "increasing") "positive" else "negative"
+  } else {
+    "none"
+  }
+
+  label <- if (direction == "positive") {
+    "Biomasa \u00edctica en aumento"   # Biomasa íctica en aumento
+  } else if (direction == "negative") {
+    "Biomasa \u00edctica en declive"   # Biomasa íctica en declive
+  } else {
+    "Biomasa \u00edctica estable"      # Biomasa íctica estable
+  }
+
+  list(
+    mk_p_value         = mkt$p,
+    mk_slope_direction = direction,
+    mk_label           = label
+  )
+}
+
 # ── run_skill ─────────────────────────────────────────────────────────────────
 #
 # Args:
-#   data      data.frame — reef-year biomass (time, reef, value, region)
-#   data_func data.frame — optional functional-group breakdown (functional_group, value)
+#   data         data.frame — reef-year biomass (time, reef, value, region)
+#   data_func    data.frame — optional functional-group breakdown (functional_group, value)
+#   data_family  data.frame — optional biomass by taxonomic family, one row per
+#                year x family (year, family, mean_biomass, n_transects).
+#                Returns ALL families — filtering is the caller's responsibility.
+#   data_species data.frame — optional biomass by species, one row per species
+#                (species_id, species_name, trophic_group, mean_biomass,
+#                n_transects). Top-N selection is the caller's responsibility.
 #
 # Returns: list(value, method, params)
 
-run_skill <- function(data, data_func = NULL, ...) {
+run_skill <- function(data, data_func = NULL, data_family = NULL,
+                      data_species = NULL, ...) {
 
   if (!requireNamespace("mgcv", quietly = TRUE))
     stop("Package 'mgcv' is required.")
@@ -163,12 +217,50 @@ run_skill <- function(data, data_func = NULL, ...) {
     }
   }
 
+  # ── Step 4b: Family breakdown (optional) ───────────────────────────────────
+  # Passed through as-is (year x family time series) — the MCP already returns
+  # ALL families; filtering to specific families is the caller's responsibility.
+
+  family_out <- NULL
+  if (!is.null(data_family)) {
+    req_family <- c("year", "family", "mean_biomass", "n_transects")
+    if (!all(req_family %in% names(data_family))) {
+      warning("data_family missing required columns — family breakdown skipped.")
+    } else {
+      family_out <- data_family
+      family_out$mean_biomass_g_m2 <- round(family_out$mean_biomass, 3)
+      family_out$mean_biomass      <- NULL
+      family_out <- family_out[order(family_out$year, family_out$family), ]
+      rownames(family_out) <- NULL
+    }
+  }
+
+  # ── Step 4c: Species breakdown (optional) ──────────────────────────────────
+  # Ranked by mean biomass descending — top-N selection stays the caller's
+  # responsibility (not truncated here).
+
+  species_out <- NULL
+  if (!is.null(data_species)) {
+    req_species <- c("species_id", "species_name", "trophic_group",
+                     "mean_biomass", "n_transects")
+    if (!all(req_species %in% names(data_species))) {
+      warning("data_species missing required columns — species breakdown skipped.")
+    } else {
+      species_out <- data_species
+      species_out$mean_biomass_g_m2 <- round(species_out$mean_biomass, 3)
+      species_out$mean_biomass      <- NULL
+      species_out <- species_out[order(-species_out$mean_biomass_g_m2), ]
+      rownames(species_out) <- NULL
+    }
+  }
+
   # ── Interpretation ────────────────────────────────────────────────────────
 
   ba  <- before_after(annual_means, "mean_biomass_g_m2",
                       before_years = head(all_years, .KPI_YEARS),
                       recent_n     = .KPI_YEARS)
-  mkt <- mk_trend(annual_means, "mean_biomass_g_m2")
+  mkt    <- mk_trend(annual_means, "mean_biomass_g_m2")
+  mk_out <- .mk_label_output(mkt, n_unique_years)
 
   bio_status <- if (!is.null(ba$status)) "neutral" else {
     p_val <- if (!is.null(mkt$p)) mkt$p else 1
@@ -218,8 +310,11 @@ run_skill <- function(data, data_func = NULL, ...) {
       kpi               = kpi,
       trend             = trend,
       annual_means      = annual_means,
-      functional_groups = func_out
+      functional_groups = func_out,
+      family_biomass    = family_out,
+      species_biomass   = species_out
     ),
+    mk             = mk_out,
     interpretation = interpretation,
     method = paste0(
       "KPI: observed mean biomass across most recent ", length(kpi_years), " survey years ",
@@ -228,7 +323,8 @@ run_skill <- function(data, data_func = NULL, ...) {
       "family = gaussian(), method = REML. ",
       "Prediction excludes reef random effect (population-level trend). ",
       "95% CI: fit ± 1.96 × se.fit over ", .GRID_POINTS, "-point year grid. ",
-      "MCP pre-processing: Carangidae excluded, size outliers removed, ",
+      "MCP pre-processing: Biomass IS NOT NULL, size outliers removed, ",
+      "Corredor region: Haemulidae/Carangidae records with biomass > 3 excluded, ",
       "consistent site filter (>= 5 years), aggregation: transect SUM -> reef MEAN."
     ),
     params = list(
