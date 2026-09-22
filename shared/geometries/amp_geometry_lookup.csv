@@ -1,0 +1,41 @@
+conanp_nombre,wdpa_nombre,geometry_source,jaccard,jaccard_threshold,area_conanp_km2,area_wdpa_km2
+Arrecifes del Golfo de México-Sur,Arrecife Alacranes,CONANP_pending_review,0,0.95,45542,3760.8
+Alto Golfo de California y Delta del Río Colorado,Alto Golfo de California y El Pinacate,CONANP_pending_review,0.567,0.95,9360.8,16503.6
+Zona marina del Archipiélago de San Lorenzo,Islas y Áreas Protegidas del Golfo de California,CONANP_pending_review,0.026,0.95,584.3,22791.2
+"Zona marina Bahía de los Ángeles, canales de Ballenas y de Salsipuedes","Zona marina Bahía de los Ángeles, canales de Ballenas y de Salsipuedes",WDPA,1,0.95,3897.8,3897.8
+Balandra,Islas y Áreas Protegidas del Golfo de California,CONANP_pending_review,0.001,0.95,25.1,22791.2
+"Costa Occ. de I. Mujeres, Pta. Cancún y Pta. Nizuc","Costa Occ. de I. Mujeres, Pta. Cancún y Pta. Nizuc",WDPA,1,0.95,102.8,102.8
+El Vizcaíno,El Vizcaíno,WDPA,1,0.95,25454.5,25454.5
+Huatulco,Huatulco,WDPA,1,0.95,126.2,126.2
+Isla Contoy,Parque Nacional Isla Contoy,WDPA,1,0.95,60,60
+Isla Guadalupe,Isla Guadalupe,WDPA,1,0.95,4828.1,4828.1
+Isla San Pedro Mártir,Isla San Pedro Mártir,WDPA,1,0.95,301.7,301.7
+Sistema Arrecifal Lobos-Tuxpan,Sistema Arrecifal Lobos-Tuxpan,WDPA,1,0.95,321.4,321.4
+Tiburón Ballena,Tiburón Ballena,WDPA,1,0.95,1702.7,1702.7
+Ventilas Hidrotermales de la Cuenca de Guaymas y de la Dorsal del Pacífico Oriental,Ventilas Hidrotermales de la Cuenca de Guaymas y de la Dorsal del Pacífico Oriental,WDPA,1,0.95,1455.6,1455.6
+Yum Balam,Área de Protección de Flora y Fauna Yum Balam,WDPA,1,0.95,1793.2,1793.2
+Arrecifes de Sian Ka'an,Arrecifes de Sian Ka'an,WDPA,1,0.95,407.1,407.1
+Cabo Pulmo,Cabo Pulmo,WDPA,1,0.95,72,72
+Arrecife Alacranes,Arrecife Alacranes,WDPA,1,0.95,3759.9,3759.9
+Bahía de Loreto,Bahía de Loreto,WDPA,1,0.95,2072,2072
+Cabo San Lucas,Cabo San Lucas,WDPA,1,0.95,40,40
+Islas Marías,Islas Marías,WDPA,1,0.95,6444.9,6444.9
+Islas Marietas,Islas Marietas,WDPA,0.96,0.95,13.9,13.9
+La Encrucijada,Reserva de la Biosfera La Encrucijada,WDPA,0.999,0.95,1599.3,1601.4
+Laguna de Términos,Área de Protección de Flora y Fauna Laguna de Términos,WDPA,1,0.95,7828.3,7828.3
+Ría Celestún,Ría Celestún,WDPA,1,0.95,913,913
+Los Petenes,Reserva de la Biosfera Los Petenes,WDPA,1,0.95,3166.7,3166.7
+Sian Ka'an,Sian Ka'an,WDPA,1,0.95,6138.9,6139.2
+Arrecifes de Xcalak,Parque Nacional Arrecifes de Xcalak,WDPA,1,0.95,208.8,208.8
+Arrecifes de Cozumel,Arrecifes de Cozumel,WDPA,1,0.95,162.1,162.1
+Banco Chinchorro,Banco Chinchorro,WDPA,1,0.95,1689.5,1689.5
+"La porción norte y la franja costera oriental, terrestres y marinas de la Isla de Cozumel",Manglares y Humedales del Norte de Isla Cozumel,CONANP_pending_review,0.524,0.95,444.4,386.7
+Arrecife de Puerto Morelos,Parque Nacional Arrecife de Puerto Morelos,WDPA,1,0.95,107,107
+Sistema Arrecifal Veracruzano,Sistema Arrecifal Veracruzano,WDPA,1,0.95,695.7,695.7
+Zona marina del Archipiélago de Espíritu Santo,Zona marina del Archipiélago de Espíritu Santo,WDPA,1,0.95,488.7,488.7
+Islas del Pacífico de la Península de Baja California,Islas del Pacífico de la Península de Baja California,WDPA,1,0.95,12301.4,12301.4
+Caribe Mexicano,Caribe Mexicano,WDPA,1,0.95,67626,67626.1
+Pacífico Mexicano Profundo,Pacífico Mexicano Profundo,WDPA,1,0.95,447080.5,447080.7
+Revillagigedo,Revillagigedo,WDPA,1,0.95,148911.1,148911.2
+Bajos del Norte,Bajos del Norte,WDPA,1,0.95,14797.6,14797.6
+Zona Marina de la Isla Isabel,Zona Marina de la Isla Isabel,WDPA,1,0.95,319.1,319.1

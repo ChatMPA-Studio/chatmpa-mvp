@@ -100,7 +100,7 @@ get_lme_geometry <- function(lme_name) {
     geom <- st_read(cache_path, quiet = TRUE)
   } else {
     cat("Fetching LME from Marine Regions API:", lme_name, "\n")
-    results <- mregions2::gaz_search(lme_name, typeid = 142)  # 142 = LME type
+    results <- mregions2::gaz_search(lme_name, typeid = 146)  # 146 = LME type (verified against gaz_types())
 
     if (nrow(results) == 0) stop("LME not found: '", lme_name, "'")
 
