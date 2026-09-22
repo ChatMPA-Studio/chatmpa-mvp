@@ -7,7 +7,7 @@
 #
 # Data contract:
 #   data       — pre-aggregated from get_landings(group_by="year_fleet").
-#                MCP handles all filtering (office, state, species, year_range).
+#                MCP handles all filtering (office, state, species, year_from/year_to).
 #   data_folio — optional, from get_landings(group_by="folio").
 #                When provided, CPUE is computed internally via conapesca-cpue.
 #
@@ -49,21 +49,23 @@
 #   office_filter              character — label only (for plot subtitle / params).
 #                              Filtering was already done by MCP.
 #   state_filter               character — label only.
-#   nombre_principal           character or NULL — label only.
-#   nombre_cientifico_canonico character or NULL — label only.
-#   year_range                 integer vector c(start, end) or NULL — label only.
+#   resource_group             character or NULL — label only (nombre_principal).
+#   species                    character or NULL — label only (nombre_cientifico_canonico).
+#   year_from, year_to         integer or NULL — label only. Year filtering is
+#                              already applied by the MCP.
 #
 # Returns: list(value_volumen, value_valor, plot_volumen, plot_valor,
 #               value_cpue, plot_cpue, method, params)
 #   value_cpue and plot_cpue are NULL when data_folio is not provided.
 
 run_skill <- function(data,
-                      data_folio                 = NULL,
-                      office_filter              = NULL,
-                      state_filter               = NULL,
-                      nombre_principal           = NULL,
-                      nombre_cientifico_canonico = NULL,
-                      year_range                 = NULL,
+                      data_folio     = NULL,
+                      office_filter  = NULL,
+                      state_filter   = NULL,
+                      resource_group = NULL,
+                      species        = NULL,
+                      year_from      = NULL,
+                      year_to        = NULL,
                       ...) {
 
   # ── Input validation ───────────────────────────────────────────────────────
@@ -77,8 +79,8 @@ run_skill <- function(data,
   if (length(missing_cols) > 0)
     stop("Missing columns in data: ", paste(missing_cols, collapse = ", "))
 
-  if (!is.null(nombre_principal) && !is.null(nombre_cientifico_canonico))
-    stop("'nombre_principal' and 'nombre_cientifico_canonico' are mutually exclusive.")
+  if (!is.null(resource_group) && !is.null(species))
+    stop("'resource_group' and 'species' are mutually exclusive.")
 
   # ── Step 1: Exclude COSECHA from base data if not present ─────────────────
   # data already filtered by MCP; just ensure tipo_aviso is limited to valid set
@@ -121,12 +123,32 @@ run_skill <- function(data,
   value_valor   <- value[, c("anio_corte", "tipo_aviso", "total_valor_mxn",
                               "n_registros", "reliable")]
 
-  # ── Step 4: Plots ──────────────────────────────────────────────────────────
+  # ── Step 4 (new): KPI scalars ─────────────────────────────────────────────
+  # Arithmetic mean of annual volume (tonnes) and value (MXN) per fleet over
+  # all years in value (year_from/year_to filtering already applied by the MCP).
+  # NA if a fleet has no rows for this office/filter combination.
 
-  filter_label <- if (!is.null(nombre_principal)) {
-    paste0("Recurso: ", nombre_principal)
-  } else if (!is.null(nombre_cientifico_canonico)) {
-    paste0("Especie: ", nombre_cientifico_canonico)
+  .kpi_mean <- function(tbl, fleet, col) {
+    rows <- as.character(tbl$tipo_aviso) == fleet
+    if (!any(rows)) return(NA_real_)
+    round(mean(tbl[[col]][rows], na.rm = TRUE), 2L)
+  }
+
+  kpi_vol_total   <- .kpi_mean(value, "TOTAL",   "total_toneladas")
+  kpi_vol_mayores <- .kpi_mean(value, "MAYORES", "total_toneladas")
+  kpi_vol_menores <- .kpi_mean(value, "MENORES", "total_toneladas")
+  kpi_vol_cosecha <- .kpi_mean(value, "COSECHA", "total_toneladas")
+  kpi_val_total   <- .kpi_mean(value, "TOTAL",   "total_valor_mxn")
+  kpi_val_mayores <- .kpi_mean(value, "MAYORES", "total_valor_mxn")
+  kpi_val_menores <- .kpi_mean(value, "MENORES", "total_valor_mxn")
+  kpi_val_cosecha <- .kpi_mean(value, "COSECHA", "total_valor_mxn")
+
+  # ── Step 5: Plots ──────────────────────────────────────────────────────────
+
+  filter_label <- if (!is.null(resource_group)) {
+    paste0("Recurso: ", resource_group)
+  } else if (!is.null(species)) {
+    paste0("Especie: ", species)
   } else {
     "Todos los recursos"
   }
@@ -150,12 +172,23 @@ run_skill <- function(data,
     auto_scale_value = TRUE
   )
 
-  # ── Step 5: CPUE (optional) ────────────────────────────────────────────────
+  # ── Step 6: CPUE (optional) ────────────────────────────────────────────────
 
   value_cpue <- NULL
   plot_cpue  <- NULL
 
   if (!is.null(data_folio)) {
+    # conapesca-cpue's run_skill() still takes a single year_range = c(start, end)
+    # argument (it filters year locally in R, unlike this skill). Reconstruct it
+    # from year_from/year_to so the embedded call stays correct without changing
+    # CPUE's own signature.
+    year_range_for_cpue <- if (!is.null(year_from) || !is.null(year_to)) {
+      c(if (!is.null(year_from)) year_from else -Inf,
+        if (!is.null(year_to))   year_to   else  Inf)
+    } else {
+      NULL
+    }
+
     cpue_result <- tryCatch({
       cpue_env <- new.env(parent = emptyenv())
       source(file.path(dirname(sys.frames()[[1L]]$ofile %||%
@@ -163,12 +196,12 @@ run_skill <- function(data,
                        "../conapesca-cpue/skill.R"),
              local = cpue_env)
       cpue_env$run_skill(
-        data                       = data_folio,
-        office_filter              = office_filter,
-        state_filter               = state_filter,
-        nombre_principal           = nombre_principal,
-        nombre_cientifico_canonico = nombre_cientifico_canonico,
-        year_range                 = year_range
+        data           = data_folio,
+        office_filter  = office_filter,
+        state_filter   = state_filter,
+        resource_group = resource_group,
+        species        = species,
+        year_range     = year_range_for_cpue
       )
     }, error = function(e) {
       warning("CPUE computation failed: ", conditionMessage(e))
@@ -184,12 +217,20 @@ run_skill <- function(data,
   # ── Return ─────────────────────────────────────────────────────────────────
 
   list(
-    value_volumen = value_volumen,
-    value_valor   = value_valor,
-    plot_volumen  = plot_volumen,
-    plot_valor    = plot_valor,
-    value_cpue    = value_cpue,
-    plot_cpue     = plot_cpue,
+    value_volumen   = value_volumen,
+    value_valor     = value_valor,
+    kpi_vol_total   = kpi_vol_total,
+    kpi_vol_mayores = kpi_vol_mayores,
+    kpi_vol_menores = kpi_vol_menores,
+    kpi_vol_cosecha = kpi_vol_cosecha,
+    kpi_val_total   = kpi_val_total,
+    kpi_val_mayores = kpi_val_mayores,
+    kpi_val_menores = kpi_val_menores,
+    kpi_val_cosecha = kpi_val_cosecha,
+    plot_volumen    = plot_volumen,
+    plot_valor      = plot_valor,
+    value_cpue      = value_cpue,
+    plot_cpue       = plot_cpue,
     method        = paste0(
       "Annual sums of total_kg (converted to tonnes) and total_valor_mxn ",
       "by anio_corte x tipo_aviso. ",
@@ -202,13 +243,14 @@ run_skill <- function(data,
       )
     ),
     params = list(
-      office_filter              = office_filter,
-      state_filter               = state_filter,
-      nombre_principal           = nombre_principal,
-      nombre_cientifico_canonico = nombre_cientifico_canonico,
-      year_range                 = year_range,
-      has_cpue                   = !is.null(data_folio),
-      min_records_warn           = .MIN_RECORDS_WARN
+      office_filter     = office_filter,
+      state_filter      = state_filter,
+      resource_group    = resource_group,
+      species           = species,
+      year_from         = year_from,
+      year_to           = year_to,
+      has_cpue          = !is.null(data_folio),
+      min_records_warn  = .MIN_RECORDS_WARN
     )
   )
 }

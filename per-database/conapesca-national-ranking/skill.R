@@ -9,7 +9,7 @@
 #
 # Data contract:
 #   data — pre-aggregated from get_landings(group_by="office_year_fleet").
-#          MCP handles all filtering (species, resource, year_range).
+#          MCP handles all filtering (species, resource, year_from/year_to).
 #          Data covers ALL offices — not just the focal one.
 #
 # See SKILL.md for the full data contract, method, and do-not rules.
@@ -29,10 +29,12 @@
 #   office_filter              character — focal office (nombre_oficina). Required.
 #   state_filter               character — focal office state. Required.
 #                              Office names are not unique across states.
-#   nombre_principal           character or NULL — label only.
-#   nombre_cientifico_canonico character or NULL — label only.
-#                              Mutually exclusive with nombre_principal.
-#   year_range                 integer vector or NULL — label only.
+#   resource_group             character or NULL — label only (nombre_principal).
+#   species                    character or NULL — label only (nombre_cientifico_canonico).
+#                              Mutually exclusive with resource_group.
+#   year_from, year_to         integer or NULL — label only. Year filtering is
+#                              already applied by the MCP (get_landings year_from/
+#                              year_to); these are for the returned params only.
 #   fleet_filter               character or NULL — one of MAYORES/MENORES/COSECHA,
 #                              or NULL to aggregate all fleet types.
 #
@@ -44,10 +46,11 @@
 run_skill <- function(data,
                       office_filter,
                       state_filter,
-                      nombre_principal           = NULL,
-                      nombre_cientifico_canonico = NULL,
-                      year_range                 = NULL,
-                      fleet_filter               = NULL,
+                      resource_group = NULL,
+                      species        = NULL,
+                      year_from      = NULL,
+                      year_to        = NULL,
+                      fleet_filter   = NULL,
                       ...) {
 
   # ── Input validation ───────────────────────────────────────────────────────
@@ -64,8 +67,8 @@ run_skill <- function(data,
     stop("'office_filter' is required.")
   if (missing(state_filter) || is.null(state_filter) || !nzchar(state_filter))
     stop("'state_filter' is required.")
-  if (!is.null(nombre_principal) && !is.null(nombre_cientifico_canonico))
-    stop("'nombre_principal' and 'nombre_cientifico_canonico' are mutually exclusive.")
+  if (!is.null(resource_group) && !is.null(species))
+    stop("'resource_group' and 'species' are mutually exclusive.")
   if (!is.null(fleet_filter) && !fleet_filter %in% .VALID_FLEET_TYPES)
     stop("'fleet_filter' must be one of: ", paste(.VALID_FLEET_TYPES, collapse = ", "),
          " or NULL.")
@@ -151,12 +154,13 @@ run_skill <- function(data,
       "pct_volumen and pct_valor = office share of national total."
     ),
     params  = list(
-      office_filter              = office_filter,
-      state_filter               = state_filter,
-      nombre_principal           = nombre_principal,
-      nombre_cientifico_canonico = nombre_cientifico_canonico,
-      year_range                 = year_range,
-      fleet_filter               = fleet_filter
+      office_filter  = office_filter,
+      state_filter   = state_filter,
+      resource_group = resource_group,
+      species        = species,
+      year_from      = year_from,
+      year_to        = year_to,
+      fleet_filter   = fleet_filter
     )
   )
 }
