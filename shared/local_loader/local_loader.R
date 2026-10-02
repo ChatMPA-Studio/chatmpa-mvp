@@ -131,7 +131,7 @@ get_lfo_coords <- function() {
 #   year_min, year_max  integer
 #
 # Returns data.frame with columns:
-#   time, reef, transect, region, value (Biomass g/m²),
+#   time, reef, transect, region, value (Biomass T/ha),
 #   TrophicLevelF, Functional_groups, Family, lat (Latitude), lon (Longitude)
 
 get_ltem_fish <- function(region   = NULL,
@@ -246,7 +246,7 @@ get_ltem_invertebrates <- function(region   = NULL,
 # ── get_ltem_nrsi_input ───────────────────────────────────────────────────────
 #
 # Returns fish data in the exact shape ltem-nrsi-index/skill.R expects:
-#   time, value (Biomass g/m²), TrophicLevelF, transect, reef
+#   time, value (Biomass T/ha), TrophicLevelF, transect, reef
 # (thin wrapper around get_ltem_fish with column selection only)
 
 get_ltem_nrsi_input <- function(region = NULL, year_min = 1998L, year_max = 2025L) {

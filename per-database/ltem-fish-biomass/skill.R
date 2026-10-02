@@ -92,10 +92,11 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
     stop("Missing columns in data: ", paste(missing_cols, collapse = ", "))
 
   if (!is.numeric(data$value))
-    stop("'value' (biomass g/m²) must be numeric.")
+    stop("'value' (biomass T/ha) must be numeric.")
 
   data <- data[!is.na(data$value) & !is.na(data$time), ]
-  data$value <- data$value * 0.01   # g/m² → T/ha (1 g/m² = 0.01 T/ha)
+  # `value` already arrives in T/ha: the LTEM Biomass column is loaded as
+  # Quantity * a * Size^b / (Area * 100) = g/m² / 100 = T/ha. No conversion here.
 
   n_unique_years <- length(unique(data$time))
   n_reefs        <- length(unique(data$reef))
@@ -176,7 +177,7 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
       fb <- data_behavioral
       fb$functional_group <- ifelse(fb$functional_name %in% names(.FN_LABELS),
                                     .FN_LABELS[fb$functional_name], fb$functional_name)
-      fb$biomass_t_ha <- round(fb$mean_biomass * 0.01, 4)
+      fb$biomass_t_ha <- round(fb$mean_biomass, 4)   # already T/ha
       keep_b <- intersect(c("year", "functional_group", "biomass_t_ha"), names(fb))
       func_out <- fb[, keep_b, drop = FALSE]
     }
@@ -188,13 +189,13 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
     } else {
       func_out <- data_func[, c("Functional_groups", "mean_biomass"), drop = FALSE]
       names(func_out) <- c("functional_group", "biomass_t_ha")
-      func_out$biomass_t_ha <- round(func_out$biomass_t_ha * 0.01, 4)
+      func_out$biomass_t_ha <- round(func_out$biomass_t_ha, 4)   # already T/ha
     }
   }
 
   # ── Step 4b: Family & species biomass pass-through (optional) ──────────────
   # Feed GET /species/family-biomass and GET /biomass/top-species. Unit kept as
-  # g/m² from the MCP; caller decides display unit, top-N and family filter.
+  # delivered by the MCP (T/ha); caller decides top-N and family filter.
   family_out <- NULL
   if (!is.null(data_family) && all(c("family", "mean_biomass") %in% names(data_family))) {
     keep_f <- intersect(c("year", "family", "mean_biomass", "n_transects"), names(data_family))
@@ -287,7 +288,7 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
       gam_method   = "REML",
       grid_points  = .GRID_POINTS,
       unit         = "T/ha",
-      unit_note    = "converted from MCP output (g/m²) via × 0.01"
+      unit_note    = "MCP output is already in T/ha (Biomass = g/m² / 100); no conversion"
     )
   )
 }
