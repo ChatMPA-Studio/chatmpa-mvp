@@ -72,6 +72,9 @@ before_after <- function(df, metric_col, year_col = "year",
 # ── mk_trend ──────────────────────────────────────────────────────────────────
 #
 # Non-parametric Mann-Kendall monotonic trend test (requires Kendall package).
+# Needs at least .MK_MIN_N non-missing values: with fewer points the test has
+# almost no power (with 4 strictly increasing points p ~ 0.09, already below the
+# p < 0.10 used by the interpretation blocks).
 #
 # Args:
 #   df         data.frame
@@ -80,6 +83,8 @@ before_after <- function(df, metric_col, year_col = "year",
 #
 # Returns:
 #   list(method, tau, p, direction)  — or list(status = ...) on failure
+
+.MK_MIN_N <- 8L
 
 mk_trend <- function(df, metric_col, year_col = "year") {
 
@@ -90,7 +95,7 @@ mk_trend <- function(df, metric_col, year_col = "year") {
   df_clean <- df_clean[order(as.integer(df_clean[[year_col]])), ]
   x        <- df_clean[[metric_col]]
 
-  if (length(x) < 4)
+  if (length(x) < .MK_MIN_N)
     return(list(status = "insufficient_data", n = length(x)))
 
   mk <- Kendall::MannKendall(x)
