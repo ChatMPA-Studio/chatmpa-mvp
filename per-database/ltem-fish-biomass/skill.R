@@ -71,16 +71,23 @@ if (!exists("before_after", mode = "function")) {
 #
 # Threshold for the label is p < 0.05 (two-sided), distinct from the
 # interpretation block which uses p < 0.10 as a softer signal.
-# Direction is inferred from the sign of Kendall's tau, which is consistent
-# with the Sen's slope direction for a monotonic series.
+# Direction is the sign of the Theil-Sen slope (trend::sens.slope) of the
+# chronologically ordered annual means, as specified in SKILL.md.
 #
 # Args:
 #   mkt     — return value of mk_trend(); list(tau, p, direction) or list(status)
 #   n_years — number of unique survey years in the full series
+#   x       — annual mean biomass ordered by year (one value per survey year)
 #
 # Returns: list(mk_p_value, mk_slope_direction, mk_label)
 
-.mk_label_output <- function(mkt, n_years) {
+.mk_label_output <- function(mkt, n_years, x) {
+
+  if (!requireNamespace("trend", quietly = TRUE)) {
+    warning("Package 'trend' not installed — Theil-Sen slope unavailable; ",
+            "MK label returned as insufficient_data.")
+    mkt <- list(status = "trend_package_missing")
+  }
 
   if (n_years < .MK_MIN_YEARS || !is.null(mkt$status)) {
     return(list(
@@ -90,8 +97,12 @@ if (!exists("before_after", mode = "function")) {
     ))
   }
 
-  direction <- if (mkt$p < 0.05) {
-    if (mkt$direction == "increasing") "positive" else "negative"
+  sen_slope <- unname(trend::sens.slope(x[!is.na(x)])$estimates)
+
+  direction <- if (mkt$p < 0.05 && sen_slope > 0) {
+    "positive"
+  } else if (mkt$p < 0.05 && sen_slope < 0) {
+    "negative"
   } else {
     "none"
   }
@@ -261,7 +272,8 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
                       before_years = head(all_years, .KPI_YEARS),
                       recent_n     = .KPI_YEARS)
   mkt    <- mk_trend(annual_means, "mean_biomass_t_ha")
-  mk_out <- .mk_label_output(mkt, n_unique_years)
+  mk_out <- .mk_label_output(mkt, n_unique_years,
+                             annual_means$mean_biomass_t_ha[order(annual_means$year)])
 
   bio_status <- if (!is.null(ba$status)) "neutral" else {
     p_val <- if (!is.null(mkt$p)) mkt$p else 1
@@ -325,8 +337,8 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
       "Prediction excludes reef random effect (population-level trend). ",
       "95% CI: fit ± 1.96 × se.fit over ", .GRID_POINTS, "-point year grid. ",
       "MCP pre-processing: label = PEC, biomass not null; ",
-      "analysis filters (Carangidae/Corredor/outliers) are NOT applied by the MCP. ",
-      "Consistent site filter (>= 5 years), aggregation: transect SUM -> reef MEAN."
+      "analysis filters (size outliers, Corredor Haemulidae/Carangidae, reefs with >= 5 years) ",
+      "are NOT applied. Aggregation: transect SUM -> reef MEAN."
     ),
     params = list(
       k_max        = .K_MAX,
