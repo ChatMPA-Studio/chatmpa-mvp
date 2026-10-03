@@ -18,6 +18,7 @@ if (!exists("before_after", mode = "function")) {
 .KPI_YEARS    <- 5L    # number of most recent survey years for KPI mean
 .GAM_MIN_YEARS <- 5L   # minimum unique years to fit the GAM
 .GRID_POINTS  <- 200L  # prediction grid resolution over year range
+.MK_MIN_YEARS <- 8L    # minimum unique survey years to compute MK trend label
 
 # ── .gam_trend ────────────────────────────────────────────────────────────────
 # Internal helper: fit the GAM and return population-level predictions.
@@ -61,6 +62,52 @@ if (!exists("before_after", mode = "function")) {
       lwr  = pred$fit - 1.96 * pred$se.fit,
       upr  = pred$fit + 1.96 * pred$se.fit
     )
+  )
+}
+
+# ── .mk_label_output ─────────────────────────────────────────────────────────
+# Internal. Derives the three MK output scalars from an mk_trend() result and
+# the number of unique survey years in the series.
+#
+# Threshold for the label is p < 0.05 (two-sided), distinct from the
+# interpretation block which uses p < 0.10 as a softer signal.
+# Direction is inferred from the sign of Kendall's tau, which is consistent
+# with the Sen's slope direction for a monotonic series.
+#
+# Args:
+#   mkt     — return value of mk_trend(); list(tau, p, direction) or list(status)
+#   n_years — number of unique survey years in the full series
+#
+# Returns: list(mk_p_value, mk_slope_direction, mk_label)
+
+.mk_label_output <- function(mkt, n_years) {
+
+  if (n_years < .MK_MIN_YEARS || !is.null(mkt$status)) {
+    return(list(
+      mk_p_value         = NA_real_,
+      mk_slope_direction = "insufficient_data",
+      mk_label           = "Datos insuficientes para tendencia"
+    ))
+  }
+
+  direction <- if (mkt$p < 0.05) {
+    if (mkt$direction == "increasing") "positive" else "negative"
+  } else {
+    "none"
+  }
+
+  label <- if (direction == "positive") {
+    "Biomasa \u00edctica en aumento"   # Biomasa íctica en aumento
+  } else if (direction == "negative") {
+    "Biomasa \u00edctica en declive"   # Biomasa íctica en declive
+  } else {
+    "Biomasa \u00edctica estable"      # Biomasa íctica estable
+  }
+
+  list(
+    mk_p_value         = mkt$p,
+    mk_slope_direction = direction,
+    mk_label           = label
   )
 }
 
@@ -213,7 +260,8 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
   ba  <- before_after(annual_means, "mean_biomass_t_ha",
                       before_years = head(all_years, .KPI_YEARS),
                       recent_n     = .KPI_YEARS)
-  mkt <- mk_trend(annual_means, "mean_biomass_t_ha")
+  mkt    <- mk_trend(annual_means, "mean_biomass_t_ha")
+  mk_out <- .mk_label_output(mkt, n_unique_years)
 
   bio_status <- if (!is.null(ba$status)) "neutral" else {
     p_val <- if (!is.null(mkt$p)) mkt$p else 1
@@ -267,6 +315,7 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
       family_biomass    = family_out,
       species_biomass   = species_out
     ),
+    mk             = mk_out,
     interpretation = interpretation,
     method = paste0(
       "KPI: observed mean biomass across most recent ", length(kpi_years), " survey years ",
