@@ -197,8 +197,9 @@ run_skill <- function(data, ...) {
       paste(.FOCAL_TAXA, collapse = ", "), ". ",
       "k_use = min(10, n_years - 1) per taxon. ",
       "Prediction excludes reef random effect; CI lower bound clipped at 0. ",
-      "MCP pre-processing: label=INV filtered, focal taxa classified, ",
-      "consistent site filter (>= 5 years), aggregation: transect SUM -> reef MEAN."
+      "MCP pre-processing: label=INV filtered, aggregation: transect SUM -> reef MEAN. ",
+      "Holaxonia/Scleractinia need Taxa3 grouping in the tool (pending ltem-db-mcp#9); ",
+      "the >= 5-year reef filter is NOT applied."
     ),
     params = list(
       focal_taxa    = .FOCAL_TAXA,
