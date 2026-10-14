@@ -18,6 +18,7 @@ if (!exists("before_after", mode = "function")) {
 .KPI_YEARS    <- 5L    # number of most recent survey years for KPI mean
 .GAM_MIN_YEARS <- 5L   # minimum unique years to fit the GAM
 .GRID_POINTS  <- 200L  # prediction grid resolution over year range
+.MK_MIN_YEARS <- 8L    # minimum unique survey years to compute MK trend label
 
 # ── .gam_trend ────────────────────────────────────────────────────────────────
 # Internal helper: fit the GAM and return population-level predictions.
@@ -64,6 +65,63 @@ if (!exists("before_after", mode = "function")) {
   )
 }
 
+# ── .mk_label_output ─────────────────────────────────────────────────────────
+# Internal. Derives the three MK output scalars from an mk_trend() result and
+# the number of unique survey years in the series.
+#
+# Threshold for the label is p < 0.05 (two-sided), distinct from the
+# interpretation block which uses p < 0.10 as a softer signal.
+# Direction is the sign of the Theil-Sen slope (trend::sens.slope) of the
+# chronologically ordered annual means, as specified in SKILL.md.
+#
+# Args:
+#   mkt     — return value of mk_trend(); list(tau, p, direction) or list(status)
+#   n_years — number of unique survey years in the full series
+#   x       — annual mean biomass ordered by year (one value per survey year)
+#
+# Returns: list(mk_p_value, mk_slope_direction, mk_label)
+
+.mk_label_output <- function(mkt, n_years, x) {
+
+  if (!requireNamespace("trend", quietly = TRUE)) {
+    warning("Package 'trend' not installed — Theil-Sen slope unavailable; ",
+            "MK label returned as insufficient_data.")
+    mkt <- list(status = "trend_package_missing")
+  }
+
+  if (n_years < .MK_MIN_YEARS || !is.null(mkt$status)) {
+    return(list(
+      mk_p_value         = NA_real_,
+      mk_slope_direction = "insufficient_data",
+      mk_label           = "Datos insuficientes para tendencia"
+    ))
+  }
+
+  sen_slope <- unname(trend::sens.slope(x[!is.na(x)])$estimates)
+
+  direction <- if (mkt$p < 0.05 && sen_slope > 0) {
+    "positive"
+  } else if (mkt$p < 0.05 && sen_slope < 0) {
+    "negative"
+  } else {
+    "none"
+  }
+
+  label <- if (direction == "positive") {
+    "Biomasa \u00edctica en aumento"   # Biomasa íctica en aumento
+  } else if (direction == "negative") {
+    "Biomasa \u00edctica en declive"   # Biomasa íctica en declive
+  } else {
+    "Biomasa \u00edctica estable"      # Biomasa íctica estable
+  }
+
+  list(
+    mk_p_value         = mkt$p,
+    mk_slope_direction = direction,
+    mk_label           = label
+  )
+}
+
 # ── run_skill ─────────────────────────────────────────────────────────────────
 #
 # Args:
@@ -92,10 +150,11 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
     stop("Missing columns in data: ", paste(missing_cols, collapse = ", "))
 
   if (!is.numeric(data$value))
-    stop("'value' (biomass g/m²) must be numeric.")
+    stop("'value' (biomass T/ha) must be numeric.")
 
   data <- data[!is.na(data$value) & !is.na(data$time), ]
-  data$value <- data$value * 0.01   # g/m² → T/ha (1 g/m² = 0.01 T/ha)
+  # `value` already arrives in T/ha: the LTEM Biomass column is loaded as
+  # Quantity * a * Size^b / (Area * 100) = g/m² / 100 = T/ha. No conversion here.
 
   n_unique_years <- length(unique(data$time))
   n_reefs        <- length(unique(data$reef))
@@ -176,7 +235,7 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
       fb <- data_behavioral
       fb$functional_group <- ifelse(fb$functional_name %in% names(.FN_LABELS),
                                     .FN_LABELS[fb$functional_name], fb$functional_name)
-      fb$biomass_t_ha <- round(fb$mean_biomass * 0.01, 4)
+      fb$biomass_t_ha <- round(fb$mean_biomass, 4)   # already T/ha
       keep_b <- intersect(c("year", "functional_group", "biomass_t_ha"), names(fb))
       func_out <- fb[, keep_b, drop = FALSE]
     }
@@ -188,13 +247,13 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
     } else {
       func_out <- data_func[, c("Functional_groups", "mean_biomass"), drop = FALSE]
       names(func_out) <- c("functional_group", "biomass_t_ha")
-      func_out$biomass_t_ha <- round(func_out$biomass_t_ha * 0.01, 4)
+      func_out$biomass_t_ha <- round(func_out$biomass_t_ha, 4)   # already T/ha
     }
   }
 
   # ── Step 4b: Family & species biomass pass-through (optional) ──────────────
   # Feed GET /species/family-biomass and GET /biomass/top-species. Unit kept as
-  # g/m² from the MCP; caller decides display unit, top-N and family filter.
+  # delivered by the MCP (T/ha); caller decides top-N and family filter.
   family_out <- NULL
   if (!is.null(data_family) && all(c("family", "mean_biomass") %in% names(data_family))) {
     keep_f <- intersect(c("year", "family", "mean_biomass", "n_transects"), names(data_family))
@@ -212,7 +271,9 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
   ba  <- before_after(annual_means, "mean_biomass_t_ha",
                       before_years = head(all_years, .KPI_YEARS),
                       recent_n     = .KPI_YEARS)
-  mkt <- mk_trend(annual_means, "mean_biomass_t_ha")
+  mkt    <- mk_trend(annual_means, "mean_biomass_t_ha")
+  mk_out <- .mk_label_output(mkt, n_unique_years,
+                             annual_means$mean_biomass_t_ha[order(annual_means$year)])
 
   bio_status <- if (!is.null(ba$status)) "neutral" else {
     p_val <- if (!is.null(mkt$p)) mkt$p else 1
@@ -266,6 +327,7 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
       family_biomass    = family_out,
       species_biomass   = species_out
     ),
+    mk             = mk_out,
     interpretation = interpretation,
     method = paste0(
       "KPI: observed mean biomass across most recent ", length(kpi_years), " survey years ",
@@ -275,8 +337,8 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
       "Prediction excludes reef random effect (population-level trend). ",
       "95% CI: fit ± 1.96 × se.fit over ", .GRID_POINTS, "-point year grid. ",
       "MCP pre-processing: label = PEC, biomass not null; ",
-      "analysis filters (Carangidae/Corredor/outliers) are NOT applied by the MCP. ",
-      "Consistent site filter (>= 5 years), aggregation: transect SUM -> reef MEAN."
+      "analysis filters (size outliers, Corredor Haemulidae/Carangidae, reefs with >= 5 years) ",
+      "are NOT applied. Aggregation: transect SUM -> reef MEAN."
     ),
     params = list(
       k_max        = .K_MAX,
@@ -287,7 +349,7 @@ run_skill <- function(data, data_behavioral = NULL, data_family = NULL,
       gam_method   = "REML",
       grid_points  = .GRID_POINTS,
       unit         = "T/ha",
-      unit_note    = "converted from MCP output (g/m²) via × 0.01"
+      unit_note    = "MCP output is already in T/ha (Biomass = g/m² / 100); no conversion"
     )
   )
 }

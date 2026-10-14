@@ -35,7 +35,7 @@ if (!exists("before_after", mode = "function")) {
 #
 # Args:
 #   data     data.frame — minimal contract from ltem-db-mcp:
-#            columns: time (int, year), value (num, Biomass g/m²),
+#            columns: time (int, year), value (num, Biomass T/ha),
 #                     TrophicLevelF (chr), transect (chr), reef (chr)
 #            optional: lat (num), lon (num), region (chr)
 #   n_boot   integer — bootstrap resamples (default: 100)
