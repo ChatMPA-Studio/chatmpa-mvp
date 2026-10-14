@@ -7,7 +7,9 @@
 # Resolves TODOs from SKILL.md: seed=42, UTL=LTL=CTL=0 edge case, reference JSON.
 
 if (!exists("before_after", mode = "function")) {
-  source(file.path(dirname(sys.frame(1)$ofile),
+  # .skill_dir lo define el servicio de skills de chat-mpa (sys.source no deja ofile).
+  .dir <- if (exists(".skill_dir")) .skill_dir else dirname(sys.frame(1)$ofile)
+  source(file.path(.dir,
                    "../../shared/interpretation/interpret.R"))
 }
 

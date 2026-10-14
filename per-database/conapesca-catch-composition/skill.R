@@ -154,8 +154,9 @@ run_skill <- function(data,
 
 .build_pie <- function(pct, components, subtitle) {
 
+  # Gráfica opcional: sin ggplot2 (p. ej. el servicio de chat-mpa) se omite.
   if (!requireNamespace("ggplot2", quietly = TRUE))
-    stop("Package 'ggplot2' is required.")
+    return(NULL)
 
   df <- data.frame(
     component = factor(components, levels = c("Capture", "Aquaculture")),

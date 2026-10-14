@@ -12,7 +12,9 @@
 # See SKILL.md for the full data contract, method, and do-not rules.
 
 if (!exists("before_after", mode = "function")) {
-  source(file.path(dirname(sys.frame(1)$ofile),
+  # .skill_dir lo define el servicio de skills de chat-mpa (sys.source no deja ofile).
+  .dir <- if (exists(".skill_dir")) .skill_dir else dirname(sys.frame(1)$ofile)
+  source(file.path(.dir,
                    "../../shared/interpretation/interpret.R"))
 }
 
@@ -280,10 +282,10 @@ run_skill <- function(data,
 
 .build_cpue_plot <- function(value, office_filter, resource_group, species) {
 
-  if (!requireNamespace("ggplot2", quietly = TRUE))
-    stop("Package 'ggplot2' is required to generate the CPUE plot.")
-  if (!requireNamespace("scales", quietly = TRUE))
-    stop("Package 'scales' is required to generate the CPUE plot.")
+  # Gráfica opcional: sin ggplot2/scales (p. ej. el servicio de chat-mpa) se omite.
+  if (!requireNamespace("ggplot2", quietly = TRUE) ||
+      !requireNamespace("scales", quietly = TRUE))
+    return(NULL)
 
   value$reliable <- value$n_viajes >= .MIN_TRIPS_WARN
 

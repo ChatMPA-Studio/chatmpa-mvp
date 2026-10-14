@@ -8,7 +8,9 @@
 #            gam_trend() and FIG07 section.
 
 if (!exists("before_after", mode = "function")) {
-  source(file.path(dirname(sys.frame(1)$ofile),
+  # .skill_dir lo define el servicio de skills de chat-mpa (sys.source no deja ofile).
+  .dir <- if (exists(".skill_dir")) .skill_dir else dirname(sys.frame(1)$ofile)
+  source(file.path(.dir,
                    "../../shared/interpretation/interpret.R"))
 }
 

@@ -54,9 +54,11 @@
 #   year_from, year_to         integer or NULL — label only. Year filtering is
 #                              already applied by the MCP.
 #
-# Returns: list(value_volumen, value_valor, plot_volumen, plot_valor,
-#               value_cpue, plot_cpue, method, params)
-#   value_cpue and plot_cpue are NULL when data_folio is not provided.
+# Returns: list(value = list(kpi, volumen, valor, cpue), value_volumen, value_valor,
+#               kpi_*, plot_volumen, plot_valor, value_cpue, plot_cpue, method, params)
+#   value$kpi is a one-row table with the eight kpi_* scalars (output.table).
+#   value_cpue and plot_cpue are NULL when data_folio is not provided; plots are
+#   NULL when ggplot2/scales are not installed.
 
 run_skill <- function(data,
                       data_folio     = NULL,
@@ -190,11 +192,14 @@ run_skill <- function(data,
     }
 
     cpue_result <- tryCatch({
-      cpue_env <- new.env(parent = emptyenv())
-      source(file.path(dirname(sys.frames()[[1L]]$ofile %||%
-                       "per-database/conapesca-cpue/skill.R"),
-                       "../conapesca-cpue/skill.R"),
-             local = cpue_env)
+      # Con parent = emptyenv() el entorno no ve ni `if`: la CPUE embebida nunca corría.
+      cpue_env <- new.env(parent = globalenv())
+      # .skill_dir lo define el servicio de skills de chat-mpa (sys.source no deja ofile).
+      skill_dir <- if (exists(".skill_dir")) .skill_dir else
+        dirname(sys.frames()[[1L]]$ofile %||% "per-database/conapesca-landings-timeseries/skill.R")
+      cpue_dir <- normalizePath(file.path(skill_dir, "../conapesca-cpue"))
+      assign(".skill_dir", cpue_dir, envir = cpue_env)
+      source(file.path(cpue_dir, "skill.R"), local = cpue_env)
       cpue_env$run_skill(
         data           = data_folio,
         office_filter  = office_filter,
@@ -216,7 +221,18 @@ run_skill <- function(data,
 
   # ── Return ─────────────────────────────────────────────────────────────────
 
+  # `value` es lo que lee el servicio de skills de chat-mpa (output.table: kpi);
+  # los elementos de abajo se conservan para quien ya los usa.
+  kpi <- data.frame(
+    kpi_vol_total   = kpi_vol_total,   kpi_vol_mayores = kpi_vol_mayores,
+    kpi_vol_menores = kpi_vol_menores, kpi_vol_cosecha = kpi_vol_cosecha,
+    kpi_val_total   = kpi_val_total,   kpi_val_mayores = kpi_val_mayores,
+    kpi_val_menores = kpi_val_menores, kpi_val_cosecha = kpi_val_cosecha
+  )
+
   list(
+    value           = list(kpi = kpi, volumen = value_volumen,
+                           valor = value_valor, cpue = value_cpue),
     value_volumen   = value_volumen,
     value_valor     = value_valor,
     kpi_vol_total   = kpi_vol_total,
@@ -299,10 +315,10 @@ run_skill <- function(data,
 .build_ts_plot <- function(value, y_col, y_axis_label, filter_label,
                            n_col, low_n_label, auto_scale_value = FALSE) {
 
-  if (!requireNamespace("ggplot2", quietly = TRUE))
-    stop("Package 'ggplot2' is required.")
-  if (!requireNamespace("scales", quietly = TRUE))
-    stop("Package 'scales' is required.")
+  # Gráfica opcional: sin ggplot2/scales (p. ej. el servicio de chat-mpa) se omite.
+  if (!requireNamespace("ggplot2", quietly = TRUE) ||
+      !requireNamespace("scales", quietly = TRUE))
+    return(NULL)
 
   # Auto-scale value axis if requested
   scale_info <- if (auto_scale_value) {
