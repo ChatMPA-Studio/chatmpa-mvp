@@ -170,6 +170,20 @@ run_skill <- function(data,
 
   rownames(value) <- NULL
 
+  # ── Step 4 (new): KPI scalars ─────────────────────────────────────────────
+  # Arithmetic mean of cpue_media per fleet over all years in value (already
+  # filtered by year_range at the MCP level). NA if a fleet has no rows.
+
+  kpi_cpue_menores <- mean(
+    value$cpue_media[value$tipo_aviso == "MENORES"], na.rm = TRUE
+  )
+  kpi_cpue_mayores <- mean(
+    value$cpue_media[value$tipo_aviso == "MAYORES"], na.rm = TRUE
+  )
+  # Coerce NaN (mean of empty set) to NA
+  if (is.nan(kpi_cpue_menores)) kpi_cpue_menores <- NA_real_
+  if (is.nan(kpi_cpue_mayores)) kpi_cpue_mayores <- NA_real_
+
   # ── Interpretation ────────────────────────────────────────────────────────
   # Per-fleet (MENORES / MAYORES) on regional scale. Status = ambiguous:
   # declining CPUE may reflect overfishing, stock depletion, or reduced effort.
@@ -236,9 +250,11 @@ run_skill <- function(data,
   # ── Return ─────────────────────────────────────────────────────────────────
 
   list(
-    value          = value,
-    interpretation = interpretation,
-    plot           = plot,
+    value            = value,
+    kpi_cpue_menores = round(kpi_cpue_menores, 4L),
+    kpi_cpue_mayores = round(kpi_cpue_mayores, 4L),
+    interpretation   = interpretation,
+    plot             = plot,
     method = paste0(
       "Mean-of-ratios CPUE: mean(sum_kg_folio / dias_efectivos_folio) ",
       "per ", paste(group_cols, collapse = " x "), ". ",
@@ -329,7 +345,7 @@ run_skill <- function(data,
       labels = c(MAYORES = "Flota mayor", MENORES = "Flota menor",
                  "n < 5 viajes" = "n < 5 viajes")
     ) +
-    ggplot2::labs(subtitle = filter_label, x = "A\u00f1o") +
+    ggplot2::labs(subtitle = filter_label, x = "Año") +
     ggplot2::theme_minimal(base_size = 12) +
     ggplot2::theme(
       legend.position  = "bottom",
