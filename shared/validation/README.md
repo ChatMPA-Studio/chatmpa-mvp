@@ -25,7 +25,7 @@ must provide:
 
 - `SKILL.md` — the contract (parsed for method, params, tolerance).
 - `skill.R` — the code, exposing **one entry-point function** the harness calls.
-- `references/*.json` — at least one reference case in the `example.json` schema.
+- `references/*.json` — at least one reference case in the `cases[]` schema of `_TEMPLATE/references/cabo_pulmo_reference.json` (`status: PENDING` until a human verifies it).
 
 ### Required `skill.R` signature
 
